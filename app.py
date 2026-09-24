@@ -341,233 +341,24 @@ def init_db():
 
         conn.commit()
 
-    # =================================================        user_id INTEGER NOT NULL,
-        course_id INTEGER NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL,
-        UNIQUE(user_id, course_id),
-        FOREIGN KEY(user_id) REFERENCES users(id),
-        FOREIGN KEY(course_id) REFERENCES courses(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS lesson_progress(
-        user_id INTEGER NOT NULL,
-        lesson_id INTEGER NOT NULL,
-        completed INTEGER NOT NULL DEFAULT 0,
-        completed_at TEXT,
-        PRIMARY KEY(user_id, lesson_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS quizzes(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        course_id INTEGER NOT NULL,
-        question TEXT NOT NULL,
-        option_a TEXT NOT NULL,
-        option_b TEXT NOT NULL,
-        option_c TEXT NOT NULL,
-        option_d TEXT NOT NULL,
-        answer TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS quiz_attempts(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        quiz_id INTEGER NOT NULL,
-        score INTEGER NOT NULL,
-        attempted_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS payments(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        course_id INTEGER NOT NULL,
-        method TEXT NOT NULL,
-        reference TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL
-    );
-    """)
-
-    # -------------------------------------------------
-    # COURSES
-    # -------------------------------------------------
-
-    if conn.execute("SELECT COUNT(*) FROM courses").fetchone()[0] == 0:
-        courses = [
-            (
-                "Form 1 Mathematics",
-                "Form 1",
-                "Build strong foundations in mathematics.",
-                5
-            ),
-            (
-                "Form 2 Mathematics",
-                "Form 2",
-                "Master key Form 2 concepts and exam skills.",
-                5
-            ),
-            (
-                "Form 3 Mathematics",
-                "Form 3",
-                "Develop problem-solving and examination confidence.",
-                5
-            ),
-            (
-                "O-Level Mathematics",
-                "Form 4 / O-Level",
-                "Complete revision, past papers and exam strategy.",
-                10
-            ),
-            (
-                "O-Level Science",
-                "Form 4 / O-Level",
-                "Science concepts, practical thinking and exam practice.",
-                10
-            ),
-            (
-                "O-Level Geography",
-                "Form 4 / O-Level",
-                "Geography concepts, maps, data and examination practice.",
-                10
-            ),
-            (
-                "A-Level History",
-                "Lower 6 / A-Level",
-                "Structured history lessons and essay practice.",
-                10
-            ),
-        ]
-
-        conn.executemany(
-            "INSERT INTO courses(title,level,description,price) VALUES(?,?,?,?)",
-            courses
-        )
-
-        conn.commit()
-
-    # -------------------------------------------------
-    # LESSONS
-    # -------------------------------------------------
-
-    if conn.execute("SELECT COUNT(*) FROM lessons").fetchone()[0] == 0:
-
-        course_rows = conn.execute(
-            "SELECT id,title FROM courses"
-        ).fetchall()
-
-        for c in course_rows:
-            lessons = [
-                (
-                    c["id"],
-                    "Welcome & Study Strategy",
-                    f"Welcome to {c['title']}. Set a weekly study timetable, watch the lesson video, read the notes and complete the quiz.",
-                    "",
-                    1
-                ),
-                (
-                    c["id"],
-                    "Core Concepts",
-                    "Learn the core ideas for this module. Add your teacher video URL in the admin area or directly in the database when ready.",
-                    "",
-                    2
-                ),
-                (
-                    c["id"],
-                    "Exam Practice",
-                    "Work through examination-style questions and check each answer carefully.",
-                    "",
-                    3
-                ),
-            ]
-
-            conn.executemany(
-                """
-                INSERT INTO lessons
-                (course_id,title,content,video_url,position)
-                VALUES(?,?,?,?,?)
-                """,
-                lessons
-            )
-
-        conn.commit()
-
-    # -------------------------------------------------
-    # FORM 1 MATHEMATICS QUIZ
-    # -------------------------------------------------
-
-    form1_course = conn.execute(
-        "SELECT id FROM courses WHERE title='Form 1 Mathematics'"
-    ).fetchone()
-
-    if form1_course and conn.execute(
-        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (form1_course["id"],)
-    ).fetchone()[0] == 0:
-
-        form1_questions = [
-            (
-                form1_course["id"],
-                "What is 15 + 27?",
-                "32",
-                "42",
-                "52",
-                "62",
-                "B"
-            ),
-            (
-                form1_course["id"],
-                "What is 7 × 6?",
-                "36",
-                "42",
-                "48",
-                "56",
-                "B"
-            ),
-            (
-                form1_course["id"],
-                "What is the place value of 5 in 3,542?",
-                "5",
-                "50",
-                "500",
-                "5000",
-                "C"
-            ),
-            (
-                form1_course["id"],
-                "Which fraction is equivalent to 1/2?",
-                "1/3",
-                "2/4",
-                "3/5",
-                "4/5",
-                "B"
-            )
-        ]
-
-        conn.executemany(
-            """
-            INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)
-            """,
-            form1_questions
-        )
-
-        conn.commit()
-
-    # -------------------------------------------------
+    # =====================================================
     # FORM 2 MATHEMATICS QUIZ
-    # -------------------------------------------------
+    # =====================================================
 
     form2_course = conn.execute(
-        "SELECT id FROM courses WHERE title='Form 2 Mathematics'"
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'Form 2 Mathematics'
+        """
     ).fetchone()
 
     if form2_course and conn.execute(
         "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (form2_course["id"],)
+        (form2_course["id"],),
     ).fetchone()[0] == 0:
 
-        form2_questions = [
+        questions = [
             (
                 form2_course["id"],
                 "Solve: x + 7 = 15",
@@ -575,7 +366,7 @@ def init_db():
                 "7",
                 "8",
                 "9",
-                "C"
+                "C",
             ),
             (
                 form2_course["id"],
@@ -584,7 +375,7 @@ def init_db():
                 "15",
                 "20",
                 "25",
-                "C"
+                "C",
             ),
             (
                 form2_course["id"],
@@ -593,7 +384,7 @@ def init_db():
                 "18 cm",
                 "24 cm",
                 "36 cm",
-                "C"
+                "C",
             ),
             (
                 form2_course["id"],
@@ -602,35 +393,40 @@ def init_db():
                 "5x",
                 "6x",
                 "x",
-                "B"
-            )
+                "B",
+            ),
         ]
 
         conn.executemany(
             """
             INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            form2_questions
+            questions,
         )
 
         conn.commit()
 
-    # -------------------------------------------------
+    # =====================================================
     # FORM 3 MATHEMATICS QUIZ
-    # -------------------------------------------------
+    # =====================================================
 
     form3_course = conn.execute(
-        "SELECT id FROM courses WHERE title='Form 3 Mathematics'"
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'Form 3 Mathematics'
+        """
     ).fetchone()
 
     if form3_course and conn.execute(
         "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (form3_course["id"],)
+        (form3_course["id"],),
     ).fetchone()[0] == 0:
 
-        form3_questions = [
+        questions = [
             (
                 form3_course["id"],
                 "Solve: 2x + 4 = 12",
@@ -638,7 +434,7 @@ def init_db():
                 "4",
                 "6",
                 "8",
-                "B"
+                "B",
             ),
             (
                 form3_course["id"],
@@ -647,7 +443,7 @@ def init_db():
                 "3",
                 "5",
                 "6",
-                "B"
+                "B",
             ),
             (
                 form3_course["id"],
@@ -656,7 +452,7 @@ def init_db():
                 "8",
                 "9",
                 "10",
-                "C"
+                "C",
             ),
             (
                 form3_course["id"],
@@ -665,35 +461,40 @@ def init_db():
                 "70°",
                 "80°",
                 "90°",
-                "B"
-            )
+                "B",
+            ),
         ]
 
         conn.executemany(
             """
             INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            form3_questions
+            questions,
         )
 
         conn.commit()
 
-    # -------------------------------------------------
+    # =====================================================
     # O-LEVEL MATHEMATICS QUIZ
-    # -------------------------------------------------
+    # =====================================================
 
     math_course = conn.execute(
-        "SELECT id FROM courses WHERE title='O-Level Mathematics'"
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'O-Level Mathematics'
+        """
     ).fetchone()
 
     if math_course and conn.execute(
         "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (math_course["id"],)
+        (math_course["id"],),
     ).fetchone()[0] == 0:
 
-        math_questions = [
+        questions = [
             (
                 math_course["id"],
                 "What is 12 × 8?",
@@ -701,7 +502,7 @@ def init_db():
                 "96",
                 "108",
                 "88",
-                "B"
+                "B",
             ),
             (
                 math_course["id"],
@@ -710,35 +511,40 @@ def init_db():
                 "5",
                 "10",
                 "20",
-                "B"
-            )
+                "B",
+            ),
         ]
 
         conn.executemany(
             """
             INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            math_questions
+            questions,
         )
 
         conn.commit()
 
-    # -------------------------------------------------
+    # =====================================================
     # O-LEVEL SCIENCE QUIZ
-    # -------------------------------------------------
+    # =====================================================
 
     science_course = conn.execute(
-        "SELECT id FROM courses WHERE title='O-Level Science'"
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'O-Level Science'
+        """
     ).fetchone()
 
     if science_course and conn.execute(
         "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (science_course["id"],)
+        (science_course["id"],),
     ).fetchone()[0] == 0:
 
-        science_questions = [
+        questions = [
             (
                 science_course["id"],
                 "Which organ pumps blood around the human body?",
@@ -746,7 +552,7 @@ def init_db():
                 "Heart",
                 "Kidney",
                 "Liver",
-                "B"
+                "B",
             ),
             (
                 science_course["id"],
@@ -755,7 +561,7 @@ def init_db():
                 "Nitrogen",
                 "Carbon dioxide",
                 "Hydrogen",
-                "A"
+                "A",
             ),
             (
                 science_course["id"],
@@ -764,7 +570,7 @@ def init_db():
                 "Watt",
                 "Newton",
                 "Pascal",
-                "C"
+                "C",
             ),
             (
                 science_course["id"],
@@ -773,111 +579,208 @@ def init_db():
                 "Root",
                 "Leaf",
                 "Fruit",
-                "B"
-            )
+                "B",
+            ),
         ]
 
         conn.executemany(
             """
             INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            science_questions
+            questions,
         )
 
         conn.commit()
 
-    # -5        course_rows = conn.execute("SELECT id,title FROM courses").fetchall()
-        for c in course_rows:
-            lessons = [
-                (c["id"], "Welcome & Study Strategy", f"Welcome to {c['title']}. Set a weekly study timetable, watch the lesson video, read the notes and complete the quiz.", "", 1),
-                (c["id"], "Core Concepts", "Learn the core ideas for this module. Add your teacher video URL in the admin area or directly in the database when ready.", "", 2),
-                (c["id"], "Exam Practice", "Work through examination-style questions and check each answer carefully.", "", 3),
-            ]
-            conn.executemany("INSERT INTO lessons(course_id,title,content,video_url,position) VALUES(?,?,?,?,?)", lessons)
-        conn.commit()
+    # =====================================================
+    # O-LEVEL GEOGRAPHY QUIZ
+    # =====================================================
 
-    # Add O-Level Science quiz
-    science_course = conn.execute(
-        "SELECT id FROM courses WHERE title='O-Level Science'"
+    geography_course = conn.execute(
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'O-Level Geography'
+        """
     ).fetchone()
 
-    if science_course and conn.execute(
+    if geography_course and conn.execute(
         "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
-        (science_course["id"],)
+        (geography_course["id"],),
     ).fetchone()[0] == 0:
 
-        science_questions = [
+        questions = [
             (
-                science_course["id"],
-                "Which organ pumps blood around the human body?",
-                "Lungs",
-                "Heart",
-                "Kidney",
-                "Liver",
-                "B"
+                geography_course["id"],
+                "Which instrument is used to measure rainfall?",
+                "Thermometer",
+                "Rain gauge",
+                "Barometer",
+                "Anemometer",
+                "B",
             ),
             (
-                science_course["id"],
-                "Which gas is needed for respiration?",
-                "Oxygen",
-                "Nitrogen",
-                "Carbon dioxide",
-                "Hydrogen",
-                "A"
+                geography_course["id"],
+                "What is the main cause of day and night?",
+                "The Earth's revolution around the Sun",
+                "The Earth's rotation on its axis",
+                "The movement of the Moon",
+                "Changes in the seasons",
+                "B",
             ),
             (
-                science_course["id"],
-                "What is the SI unit of force?",
-                "Joule",
-                "Watt",
-                "Newton",
-                "Pascal",
-                "C"
+                geography_course["id"],
+                "Which type of rainfall occurs when moist air is forced to rise over mountains?",
+                "Convectional rainfall",
+                "Relief rainfall",
+                "Frontal rainfall",
+                "Evaporation",
+                "B",
             ),
             (
-                science_course["id"],
-                "Which part of a plant absorbs most water from the soil?",
-                "Flower",
-                "Root",
-                "Leaf",
-                "Fruit",
-                "B"
-            )
+                geography_course["id"],
+                "Which layer of the Earth is the solid outer layer on which the continents are found?",
+                "Crust",
+                "Mantle",
+                "Outer core",
+                "Inner core",
+                "A",
+            ),
         ]
 
         conn.executemany(
-            """INSERT INTO quizzes
-            (course_id,question,option_a,option_b,option_c,option_d,answer)
-            VALUES(?,?,?,?,?,?,?)""",
-            science_questions
+            """
+            INSERT INTO quizzes
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            questions,
         )
 
         conn.commit()
 
-    if not conn.execute("SELECT 1 FROM users WHERE email='admin@eaglevisionacademy.co.zw'").fetchone():
-        c = conn.execute("SELECT id FROM courses WHERE title='O-Level Mathematics'").fetchone()
-        if c:
-            conn.execute("""INSERT INTO quizzes(course_id,question,option_a,option_b,option_c,option_d,answer)
-                            VALUES(?,?,?,?,?,?,?)""",
-                         (c["id"], "What is 12 × 8?", "86", "96", "108", "88", "B"))
-            conn.execute("""INSERT INTO quizzes(course_id,question,option_a,option_b,option_c,option_d,answer)
-                            VALUES(?,?,?,?,?,?,?)""",
-                         (c["id"], "Solve: 2x = 10", "2", "5", "10", "20", "B"))
-            conn.commit()
-    if not conn.execute("SELECT 1 FROM users WHERE email='admin@eaglevisionacademy.co.zw'").fetchone():
-        conn.execute("""INSERT INTO users(full_name,email,phone,password_hash,role,created_at)
-                        VALUES(?,?,?,?,?,?)""",
-                     ("Eagle Vision Admin","admin@eaglevisionacademy.co.zw","+263 71 741 0018",
-                      generate_password_hash("ChangeMe123!"),"admin",datetime.utcnow().isoformat()))
+    # =====================================================
+    # A-LEVEL HISTORY QUIZ
+    # =====================================================
+
+    history_course = conn.execute(
+        """
+        SELECT id
+        FROM courses
+        WHERE title = 'A-Level History'
+        """
+    ).fetchone()
+
+    if history_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (history_course["id"],),
+    ).fetchone()[0] == 0:
+
+        questions = [
+            (
+                history_course["id"],
+                "What event immediately triggered the First World War in 1914?",
+                "The assassination of Archduke Franz Ferdinand",
+                "The invasion of Poland",
+                "The Russian Revolution",
+                "The signing of the Treaty of Versailles",
+                "A",
+            ),
+            (
+                history_course["id"],
+                "Which country was ruled by Adolf Hitler?",
+                "Italy",
+                "Germany",
+                "France",
+                "Russia",
+                "B",
+            ),
+            (
+                history_course["id"],
+                "What was a major purpose of the Berlin Conference of 1884–1885?",
+                "To divide Africa among European powers",
+                "To end the First World War",
+                "To establish the United Nations",
+                "To create the European Union",
+                "A",
+            ),
+            (
+                history_course["id"],
+                "Which international organization was established after the Second World War to promote peace and cooperation?",
+                "League of Nations",
+                "United Nations",
+                "African Union",
+                "European Union",
+                "B",
+            ),
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id, question, option_a, option_b,
+             option_c, option_d, answer)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            questions,
+        )
+
         conn.commit()
+
+    # =====================================================
+    # ADMIN USER
+    # =====================================================
+
+    admin_exists = conn.execute(
+        """
+        SELECT 1
+        FROM users
+        WHERE email = 'admin@eaglevisionacademy.co.zw'
+        """
+    ).fetchone()
+
+    if not admin_exists:
+        conn.execute(
+            """
+            INSERT INTO users
+            (full_name, email, phone, password_hash, role, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "Eagle Vision Admin",
+                "admin@eaglevisionacademy.co.zw",
+                "+263 71 741 0018",
+                generate_password_hash("ChangeMe123!"),
+                "admin",
+                datetime.utcnow().isoformat(),
+            ),
+        )
+
+        conn.commit()
+
+
+# =========================================================
+# USER LOADING
+# =========================================================
 
 @app.before_request
 def load_user():
     g.user = None
+
     if session.get("user_id"):
-        g.user = db().execute("SELECT * FROM users WHERE id=?", (session["user_id"],)).fetchone()
+        g.user = db().execute(
+            "SELECT * FROM users WHERE id=?",
+            (session["user_id"],),
+        ).fetchone()
+
+
+# =========================================================
+# ACCESS CONTROL
+# =========================================================
 
 def login_required(view):
     @wraps(view)
@@ -885,8 +788,11 @@ def login_required(view):
         if not g.user:
             flash("Please log in to continue.")
             return redirect(url_for("login"))
+
         return view(*args, **kwargs)
+
     return wrapped
+
 
 def admin_required(view):
     @wraps(view)
@@ -894,94 +800,281 @@ def admin_required(view):
         if not g.user or g.user["role"] != "admin":
             flash("Administrator access required.")
             return redirect(url_for("login"))
+
         return view(*args, **kwargs)
+
     return wrapped
+
+
+# =========================================================
+# HOME
+# =========================================================
 
 @app.route("/")
 def index():
-    courses = db().execute("SELECT * FROM courses WHERE active=1 ORDER BY id").fetchall()
-    return render_template("index.html", courses=courses)
+    courses = db().execute(
+        """
+        SELECT *
+        FROM courses
+        WHERE active=1
+        ORDER BY id
+        """
+    ).fetchall()
 
-@app.route("/register", methods=["GET","POST"])
+    return render_template(
+        "index.html",
+        courses=courses,
+    )
+
+
+# =========================================================
+# REGISTER
+# =========================================================
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
+
     if request.method == "POST":
+
         name = request.form["full_name"].strip()
         email = request.form["email"].strip().lower()
-        phone = request.form.get("phone","").strip()
+        phone = request.form.get("phone", "").strip()
         password = request.form["password"]
+
         if len(password) < 8:
             flash("Password must be at least 8 characters.")
             return redirect(url_for("register"))
+
         try:
-            cur = db().execute("""INSERT INTO users(full_name,email,phone,password_hash,created_at)
-                                  VALUES(?,?,?,?,?)""",
-                               (name,email,phone,generate_password_hash(password),datetime.utcnow().isoformat()))
+
+            cur = db().execute(
+                """
+                INSERT INTO users
+                (full_name, email, phone, password_hash, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    name,
+                    email,
+                    phone,
+                    generate_password_hash(password),
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+
             db().commit()
+
             session["user_id"] = cur.lastrowid
+
             flash("Welcome to the Eagle Family!")
+
             return redirect(url_for("dashboard"))
+
         except sqlite3.IntegrityError:
+
             flash("That email is already registered.")
+
     return render_template("register.html")
 
-@app.route("/login", methods=["GET","POST"])
+
+# =========================================================
+# LOGIN
+# =========================================================
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
+
     if request.method == "POST":
+
         email = request.form["email"].strip().lower()
         password = request.form["password"]
-        user = db().execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-        if user and check_password_hash(user["password_hash"], password):
+
+        user = db().execute(
+            "SELECT * FROM users WHERE email=?",
+            (email,),
+        ).fetchone()
+
+        if user and check_password_hash(
+            user["password_hash"],
+            password,
+        ):
+
             session["user_id"] = user["id"]
-            return redirect(url_for("admin" if user["role"]=="admin" else "dashboard"))
+
+            if user["role"] == "admin":
+                return redirect(url_for("admin"))
+
+            return redirect(url_for("dashboard"))
+
         flash("Incorrect email or password.")
+
     return render_template("login.html")
+
+
+# =========================================================
+# LOGOUT
+# =========================================================
 
 @app.route("/logout")
 def logout():
+
     session.clear()
+
     return redirect(url_for("index"))
+
+
+# =========================================================
+# STUDENT DASHBOARD
+# =========================================================
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    courses = db().execute("""SELECT c.*, e.status FROM courses c
-                              JOIN enrollments e ON e.course_id=c.id
-                              WHERE e.user_id=? ORDER BY c.id""",(g.user["id"],)).fetchall()
-    return render_template("dashboard.html", courses=courses)
+
+    courses = db().execute(
+        """
+        SELECT c.*, e.status
+        FROM courses c
+        JOIN enrollments e
+            ON e.course_id=c.id
+        WHERE e.user_id=?
+        ORDER BY c.id
+        """,
+        (g.user["id"],),
+    ).fetchall()
+
+    return render_template(
+        "dashboard.html",
+        courses=courses,
+    )
+
+
+# =========================================================
+# COURSE PAGE
+# =========================================================
 
 @app.route("/course/<int:course_id>")
 @login_required
 def course(course_id):
-    c = db().execute("SELECT * FROM courses WHERE id=?", (course_id,)).fetchone()
-    if not c: return "Course not found", 404
-    enrollment = db().execute("SELECT * FROM enrollments WHERE user_id=? AND course_id=?",(g.user["id"],course_id)).fetchone()
-    lessons = db().execute("""SELECT l.*, COALESCE(p.completed,0) completed
-                              FROM lessons l LEFT JOIN lesson_progress p
-                              ON p.lesson_id=l.id AND p.user_id=?
-                              WHERE l.course_id=? ORDER BY l.position""",(g.user["id"],course_id)).fetchall()
-    quizzes = db().execute("SELECT * FROM quizzes WHERE course_id=?", (course_id,)).fetchall()
-    return render_template("course.html", course=c, enrollment=enrollment, lessons=lessons, quizzes=quizzes)
+
+    c = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not c:
+        return "Course not found", 404
+
+    enrollment = db().execute(
+        """
+        SELECT *
+        FROM enrollments
+        WHERE user_id=? AND course_id=?
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchone()
+
+    lessons = db().execute(
+        """
+        SELECT
+            l.*,
+            COALESCE(p.completed, 0) AS completed
+        FROM lessons l
+        LEFT JOIN lesson_progress p
+            ON p.lesson_id=l.id
+            AND p.user_id=?
+        WHERE l.course_id=?
+        ORDER BY l.position
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchall()
+
+    quizzes = db().execute(
+        """
+        SELECT *
+        FROM quizzes
+        WHERE course_id=?
+        """,
+        (course_id,),
+    ).fetchall()
+
+    return render_template(
+        "course.html",
+        course=c,
+        enrollment=enrollment,
+        lessons=lessons,
+        quizzes=quizzes,
+    )
+
+
+# =========================================================
+# ENROL
+# =========================================================
 
 @app.route("/enrol/<int:course_id>", methods=["POST"])
 @login_required
 def enrol(course_id):
-    c = db().execute("SELECT * FROM courses WHERE id=?", (course_id,)).fetchone()
-    if not c: return "Course not found", 404
+
+    c = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not c:
+        return "Course not found", 404
+
     try:
-        db().execute("""INSERT INTO enrollments(user_id,course_id,status,created_at)
-                        VALUES(?,?,?,?)""",(g.user["id"],course_id,"pending",datetime.utcnow().isoformat()))
+
+        db().execute(
+            """
+            INSERT INTO enrollments
+            (user_id, course_id, status, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                g.user["id"],
+                course_id,
+                "pending",
+                datetime.utcnow().isoformat(),
+            ),
+        )
+
         db().commit()
-        flash("Enrolment request created. Submit payment to activate your course.")
+
+        flash(
+            "Enrolment request created. "
+            "Submit payment to activate your course."
+        )
+
     except sqlite3.IntegrityError:
+
         flash("You already requested this course.")
-    return redirect(url_for("course", course_id=course_id))
+
+    return redirect(
+        url_for(
+            "course",
+            course_id=course_id,
+        )
+    )
+
+
+# =========================================================
+# LESSON
+# =========================================================
 
 @app.route("/lesson/<int:lesson_id>")
 @login_required
 def lesson(lesson_id):
+
     l = db().execute(
         "SELECT * FROM lessons WHERE id=?",
-        (lesson_id,)
+        (lesson_id,),
     ).fetchone()
 
     if not l:
@@ -989,134 +1082,593 @@ def lesson(lesson_id):
 
     course = db().execute(
         "SELECT * FROM courses WHERE id=?",
-        (l["course_id"],)
+        (l["course_id"],),
     ).fetchone()
 
     if not course:
         return "Course not found", 404
 
     enrollment = db().execute(
-        "SELECT * FROM enrollments WHERE user_id=? AND course_id=?",
-        (g.user["id"], l["course_id"])
+        """
+        SELECT *
+        FROM enrollments
+        WHERE user_id=? AND course_id=?
+        """,
+        (
+            g.user["id"],
+            l["course_id"],
+        ),
     ).fetchone()
 
     return render_template(
         "lesson.html",
         lesson=l,
         course=course,
-        enrollment=enrollment)
-    
-@app.route("/lesson/<int:lesson_id>/complete", methods=["POST"])
+        enrollment=enrollment,
+    )
+
+
+# =========================================================
+# COMPLETE LESSON
+# =========================================================
+
+@app.route(
+    "/lesson/<int:lesson_id>/complete",
+    methods=["POST"],
+)
 @login_required
 def complete_lesson(lesson_id):
-    l = db().execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
-    if not l: return "Lesson not found", 404
-    if not db().execute("SELECT 1 FROM enrollments WHERE user_id=? AND course_id=? AND status='active'",
-                         (g.user["id"],l["course_id"])).fetchone():
-        flash("Your course must be activated before completing lessons.")
-        return redirect(url_for("course", course_id=l["course_id"]))
-    db().execute("""INSERT INTO lesson_progress(user_id,lesson_id,completed,completed_at)
-                    VALUES(?,?,1,?) ON CONFLICT(user_id,lesson_id)
-                    DO UPDATE SET completed=1, completed_at=excluded.completed_at""",
-                 (g.user["id"],lesson_id,datetime.utcnow().isoformat()))
-    db().commit()
-    flash("Lesson marked complete.")
-    return redirect(url_for("course", course_id=l["course_id"]))
 
-@app.route("/quiz/<int:course_id>", methods=["GET","POST"])
+    l = db().execute(
+        "SELECT * FROM lessons WHERE id=?",
+        (lesson_id,),
+    ).fetchone()
+
+    if not l:
+        return "Lesson not found", 404
+
+    active = db().execute(
+        """
+        SELECT 1
+        FROM enrollments
+        WHERE user_id=?
+          AND course_id=?
+          AND status='active'
+        """,
+        (
+            g.user["id"],
+            l["course_id"],
+        ),
+    ).fetchone()
+
+    if not active:
+
+        flash(
+            "Your course must be activated "
+            "before completing lessons."
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=l["course_id"],
+            )
+        )
+
+    db().execute(
+        """
+        INSERT INTO lesson_progress
+        (user_id, lesson_id, completed, completed_at)
+        VALUES (?, ?, 1, ?)
+        ON CONFLICT(user_id, lesson_id)
+        DO UPDATE SET
+            completed=1,
+            completed_at=excluded.completed_at
+        """,
+        (
+            g.user["id"],
+            lesson_id,
+            datetime.utcnow().isoformat(),
+        ),
+    )
+
+    db().commit()
+
+    flash("Lesson marked complete.")
+
+    return redirect(
+        url_for(
+            "course",
+            course_id=l["course_id"],
+        )
+    )
+
+
+# =========================================================
+# QUIZ
+# =========================================================
+
+@app.route(
+    "/quiz/<int:course_id>",
+    methods=["GET", "POST"],
+)
 @login_required
 def quiz(course_id):
-    if not db().execute("SELECT 1 FROM enrollments WHERE user_id=? AND course_id=? AND status='active'",
-                         (g.user["id"],course_id)).fetchone():
-        flash("Activate the course to take its quiz.")
-        return redirect(url_for("course",course_id=course_id))
-    questions = db().execute("SELECT * FROM quizzes WHERE course_id=? ORDER BY id",(course_id,)).fetchall()
-    if request.method=="POST":
-        score=0
-        for q in questions:
-            if request.form.get(f"q{q['id']}")==q["answer"]:
-                score += 1
-        db().execute("INSERT INTO quiz_attempts(user_id,quiz_id,score,attempted_at) VALUES(?,?,?,?)",
-                     (g.user["id"], questions[0]["id"] if questions else 0, score, datetime.utcnow().isoformat()))
-        db().commit()
-        flash(f"Quiz submitted: {score}/{len(questions)}")
-        return redirect(url_for("course",course_id=course_id))
-    return render_template("quiz.html", questions=questions, course_id=course_id)
 
-@app.route("/pay/<int:course_id>", methods=["GET","POST"])
+    active = db().execute(
+        """
+        SELECT 1
+        FROM enrollments
+        WHERE user_id=?
+          AND course_id=?
+          AND status='active'
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchone()
+
+    if not active:
+
+        flash(
+            "Activate the course to take its quiz."
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    questions = db().execute(
+        """
+        SELECT *
+        FROM quizzes
+        WHERE course_id=?
+        ORDER BY id
+        """,
+        (course_id,),
+    ).fetchall()
+
+    if request.method == "POST":
+
+        score = 0
+
+        for q in questions:
+
+            if request.form.get(
+                f"q{q['id']}"
+            ) == q["answer"]:
+
+                score += 1
+
+        if questions:
+
+            db().execute(
+                """
+                INSERT INTO quiz_attempts
+                (user_id, quiz_id, score, attempted_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    g.user["id"],
+                    questions[0]["id"],
+                    score,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+
+            db().commit()
+
+        flash(
+            f"Quiz submitted: "
+            f"{score}/{len(questions)}"
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    return render_template(
+        "quiz.html",
+        questions=questions,
+        course_id=course_id,
+    )
+
+
+# =========================================================
+# PAYMENT
+# =========================================================
+
+@app.route(
+    "/pay/<int:course_id>",
+    methods=["GET", "POST"],
+)
 @login_required
 def pay(course_id):
-    c=db().execute("SELECT * FROM courses WHERE id=?",(course_id,)).fetchone()
-    if not c: return "Course not found",404
-    if request.method=="POST":
-        method=request.form["method"]
-        ref=request.form["reference"].strip()
-        db().execute("""INSERT INTO payments(user_id,course_id,method,reference,status,created_at)
-                        VALUES(?,?,?,?,?,?)""",(g.user["id"],course_id,method,ref,"pending",datetime.utcnow().isoformat()))
+
+    c = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not c:
+        return "Course not found", 404
+
+    if request.method == "POST":
+
+        method = request.form["method"]
+        reference = request.form["reference"].strip()
+
+        db().execute(
+            """
+            INSERT INTO payments
+            (user_id, course_id, method, reference,
+             status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                g.user["id"],
+                course_id,
+                method,
+                reference,
+                "pending",
+                datetime.utcnow().isoformat(),
+            ),
+        )
+
         db().commit()
-        flash("Payment details submitted. Your course will be activated after verification.")
+
+        flash(
+            "Payment details submitted. "
+            "Your course will be activated after verification."
+        )
+
         return redirect(url_for("dashboard"))
-    return render_template("payment.html",course=c)
+
+    return render_template(
+        "payment.html",
+        course=c,
+    )
+
+
+# =========================================================
+# CERTIFICATE
+# =========================================================
 
 @app.route("/certificate/<int:course_id>")
 @login_required
 def certificate(course_id):
-    c=db().execute("SELECT * FROM courses WHERE id=?",(course_id,)).fetchone()
-    if not c: return "Course not found",404
-    total=db().execute("SELECT COUNT(*) FROM lessons WHERE course_id=?",(course_id,)).fetchone()[0]
-    done=db().execute("""SELECT COUNT(*) FROM lesson_progress p JOIN lessons l ON l.id=p.lesson_id
-                         WHERE p.user_id=? AND l.course_id=? AND p.completed=1""",(g.user["id"],course_id)).fetchone()[0]
+
+    c = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not c:
+        return "Course not found", 404
+
+    total = db().execute(
+        """
+        SELECT COUNT(*)
+        FROM lessons
+        WHERE course_id=?
+        """,
+        (course_id,),
+    ).fetchone()[0]
+
+    done = db().execute(
+        """
+        SELECT COUNT(*)
+        FROM lesson_progress p
+        JOIN lessons l
+            ON l.id=p.lesson_id
+        WHERE p.user_id=?
+          AND l.course_id=?
+          AND p.completed=1
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchone()[0]
+
     if not total or done < total:
-        flash("Complete all lessons to unlock your certificate.")
-        return redirect(url_for("course",course_id=course_id))
-    filename=os.path.join(CERT_DIR,f"certificate_{g.user['id']}_{course_id}.pdf")
-    cpdf=canvas.Canvas(filename,pagesize=A4)
-    w,h=A4
-    cpdf.setStrokeColorRGB(0.04,0.14,0.30); cpdf.rect(35,35,w-70,h-70)
-    cpdf.setFont("Helvetica-Bold",25); cpdf.drawCentredString(w/2,h-120,"EAGLE VISION ONLINE ACADEMY")
-    cpdf.setFont("Helvetica",13); cpdf.drawCentredString(w/2,h-150,"Learn. Revise. Achieve.")
-    cpdf.setFont("Helvetica-Bold",18); cpdf.drawCentredString(w/2,h-230,"CERTIFICATE OF COMPLETION")
-    cpdf.setFont("Helvetica",14); cpdf.drawCentredString(w/2,h-290,"This certificate is proudly presented to")
-    cpdf.setFont("Helvetica-Bold",22); cpdf.drawCentredString(w/2,h-335,g.user["full_name"])
-    cpdf.setFont("Helvetica",14); cpdf.drawCentredString(w/2,h-390,"for successfully completing")
-    cpdf.setFont("Helvetica-Bold",18); cpdf.drawCentredString(w/2,h-430,c["title"])
-    cpdf.setFont("Helvetica",11); cpdf.drawCentredString(w/2,h-500,f"Date: {datetime.utcnow().date().isoformat()}")
-    cpdf.drawCentredString(w/2,h-525,f"Certificate ID: EVA-{g.user['id']:04d}-{course_id:04d}")
+
+        flash(
+            "Complete all lessons "
+            "to unlock your certificate."
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    filename = os.path.join(
+        CERT_DIR,
+        f"certificate_{g.user['id']}_{course_id}.pdf",
+    )
+
+    cpdf = canvas.Canvas(
+        filename,
+        pagesize=A4,
+    )
+
+    width, height = A4
+
+    cpdf.setStrokeColorRGB(
+        0.04,
+        0.14,
+        0.30,
+    )
+
+    cpdf.rect(
+        35,
+        35,
+        width - 70,
+        height - 70,
+    )
+
+    cpdf.setFont(
+        "Helvetica-Bold",
+        25,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 120,
+        "EAGLE VISION ONLINE ACADEMY",
+    )
+
+    cpdf.setFont(
+        "Helvetica",
+        13,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 150,
+        "Learn. Revise. Achieve.",
+    )
+
+    cpdf.setFont(
+        "Helvetica-Bold",
+        18,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 230,
+        "CERTIFICATE OF COMPLETION",
+    )
+
+    cpdf.setFont(
+        "Helvetica",
+        14,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 290,
+        "This certificate is proudly presented to",
+    )
+
+    cpdf.setFont(
+        "Helvetica-Bold",
+        22,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 335,
+        g.user["full_name"],
+    )
+
+    cpdf.setFont(
+        "Helvetica",
+        14,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 390,
+        "for successfully completing",
+    )
+
+    cpdf.setFont(
+        "Helvetica-Bold",
+        18,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 430,
+        c["title"],
+    )
+
+    cpdf.setFont(
+        "Helvetica",
+        11,
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 500,
+        f"Date: {datetime.utcnow().date().isoformat()}",
+    )
+
+    cpdf.drawCentredString(
+        width / 2,
+        height - 525,
+        f"Certificate ID: "
+        f"EVA-{g.user['id']:04d}-{course_id:04d}",
+    )
+
     cpdf.save()
-    return send_file(filename,as_attachment=True,download_name=os.path.basename(filename))
+
+    return send_file(
+        filename,
+        as_attachment=True,
+        download_name=os.path.basename(filename),
+    )
+
+
+# =========================================================
+# ADMIN DASHBOARD
+# =========================================================
 
 @app.route("/admin")
 @admin_required
 def admin():
-    pending = db().execute("""SELECT p.*, u.full_name, u.email, c.title
-                              FROM payments p JOIN users u ON u.id=p.user_id
-                              JOIN courses c ON c.id=p.course_id
-                              WHERE p.status='pending' ORDER BY p.id DESC""").fetchall()
-    users=db().execute("SELECT id,full_name,email,phone,role,created_at FROM users ORDER BY id DESC").fetchall()
-    courses=db().execute("SELECT * FROM courses ORDER BY id").fetchall()
-    return render_template("admin.html",pending=pending,users=users,courses=courses)
 
-@app.route("/admin/payment/<int:payment_id>/approve", methods=["POST"])
+    pending = db().execute(
+        """
+        SELECT
+            p.*,
+            u.full_name,
+            u.email,
+            c.title
+        FROM payments p
+        JOIN users u
+            ON u.id=p.user_id
+        JOIN courses c
+            ON c.id=p.course_id
+        WHERE p.status='pending'
+        ORDER BY p.id DESC
+        """
+    ).fetchall()
+
+    users = db().execute(
+        """
+        SELECT
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            created_at
+        FROM users
+        ORDER BY id DESC
+        """
+    ).fetchall()
+
+    courses = db().execute(
+        """
+        SELECT *
+        FROM courses
+        ORDER BY id
+        """
+    ).fetchall()
+
+    return render_template(
+        "admin.html",
+        pending=pending,
+        users=users,
+        courses=courses,
+    )
+
+
+# =========================================================
+# APPROVE PAYMENT
+# =========================================================
+
+@app.route(
+    "/admin/payment/<int:payment_id>/approve",
+    methods=["POST"],
+)
 @admin_required
 def approve_payment(payment_id):
-    p=db().execute("SELECT * FROM payments WHERE id=?",(payment_id,)).fetchone()
-    if p:
-        db().execute("UPDATE payments SET status='approved' WHERE id=?",(payment_id,))
-        db().execute("""UPDATE enrollments SET status='active' WHERE user_id=? AND course_id=?""",
-                     (p["user_id"],p["course_id"]))
+
+    payment = db().execute(
+        """
+        SELECT *
+        FROM payments
+        WHERE id=?
+        """,
+        (payment_id,),
+    ).fetchone()
+
+    if payment:
+
+        db().execute(
+            """
+            UPDATE payments
+            SET status='approved'
+            WHERE id=?
+            """,
+            (payment_id,),
+        )
+
+        db().execute(
+            """
+            UPDATE enrollments
+            SET status='active'
+            WHERE user_id=?
+              AND course_id=?
+            """,
+            (
+                payment["user_id"],
+                payment["course_id"],
+            ),
+        )
+
         db().commit()
-        flash("Payment approved and course activated.")
+
+        flash(
+            "Payment approved and course activated."
+        )
+
     return redirect(url_for("admin"))
 
-@app.route("/admin/course/<int:course_id>/toggle", methods=["POST"])
+
+# =========================================================
+# TOGGLE COURSE
+# =========================================================
+
+@app.route(
+    "/admin/course/<int:course_id>/toggle",
+    methods=["POST"],
+)
 @admin_required
 def toggle_course(course_id):
-    db().execute("UPDATE courses SET active=CASE active WHEN 1 THEN 0 ELSE 1 END WHERE id=?",(course_id,))
+
+    db().execute(
+        """
+        UPDATE courses
+        SET active =
+            CASE active
+                WHEN 1 THEN 0
+                ELSE 1
+            END
+        WHERE id=?
+        """,
+        (course_id,),
+    )
+
     db().commit()
+
     return redirect(url_for("admin"))
+
+
+# =========================================================
+# INITIALIZE DATABASE
+# =========================================================
 
 with app.app_context():
     init_db()
+
+
+# =========================================================
+# RUN APPLICATION
+# =========================================================
 
 if __name__ == "__main__":
     app.run(debug=True)
