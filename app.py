@@ -241,7 +241,36 @@ def enrol(course_id):
         flash("You already requested this course.")
     return redirect(url_for("course", course_id=course_id))
 
-@app.route("/lesson/<int:lesson_id>/complete", methods=["POST"])
+@app.route("/lesson/<int:lesson_id>")
+@login_required
+def lesson(lesson_id):
+    l = db().execute(
+        "SELECT * FROM lessons WHERE id=?",
+        (lesson_id,)
+    ).fetchone()
+
+    if not l:
+        return "Lesson not found", 404
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (l["course_id"],)
+    ).fetchone()
+
+    if not course:
+        return "Course not found", 404
+
+    enrollment = db().execute(
+        "SELECT * FROM enrollments WHERE user_id=? AND course_id=?",
+        (g.user["id"], l["course_id"])
+    ).fetchone()
+
+    return render_template(
+        "lesson.html",
+        lesson=l,
+        course=course,
+        enrollment=enrollment
+    )@app.route("/lesson/<int:lesson_id>/complete", methods=["POST"])
 @login_required
 def complete_lesson(lesson_id):
     l = db().execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
