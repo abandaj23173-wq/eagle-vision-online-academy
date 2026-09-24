@@ -9,10 +9,15 @@ from reportlab.lib.pagesizes import A4
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE, "academy.db")
 CERT_DIR = os.path.join(BASE, "certificates")
+
 os.makedirs(CERT_DIR, exist_ok=True)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION")
+app.secret_key = os.environ.get(
+    "SECRET_KEY",
+    "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION"
+)
+
 
 def db():
     if "db" not in g:
@@ -20,14 +25,17 @@ def db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
+
 @app.teardown_appcontext
 def close_db(exception=None):
     conn = g.pop("db", None)
     if conn:
         conn.close()
 
+
 def init_db():
     conn = db()
+
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +46,7 @@ def init_db():
         role TEXT NOT NULL DEFAULT 'student',
         created_at TEXT NOT NULL
     );
+
     CREATE TABLE IF NOT EXISTS courses(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -46,6 +55,7 @@ def init_db():
         price REAL NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1
     );
+
     CREATE TABLE IF NOT EXISTS lessons(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         course_id INTEGER NOT NULL,
@@ -55,6 +65,7 @@ def init_db():
         position INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY(course_id) REFERENCES courses(id)
     );
+
     CREATE TABLE IF NOT EXISTS enrollments(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -65,6 +76,7 @@ def init_db():
         FOREIGN KEY(user_id) REFERENCES users(id),
         FOREIGN KEY(course_id) REFERENCES courses(id)
     );
+
     CREATE TABLE IF NOT EXISTS lesson_progress(
         user_id INTEGER NOT NULL,
         lesson_id INTEGER NOT NULL,
@@ -72,6 +84,7 @@ def init_db():
         completed_at TEXT,
         PRIMARY KEY(user_id, lesson_id)
     );
+
     CREATE TABLE IF NOT EXISTS quizzes(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         course_id INTEGER NOT NULL,
@@ -80,6 +93,465 @@ def init_db():
         option_b TEXT NOT NULL,
         option_c TEXT NOT NULL,
         option_d TEXT NOT NULL,
+        answer TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS quiz_attempts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        quiz_id INTEGER NOT NULL,
+        score INTEGER NOT NULL,
+        attempted_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS payments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        course_id INTEGER NOT NULL,
+        method TEXT NOT NULL,
+        reference TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL
+    );
+    """)
+
+    # -------------------------------------------------
+    # COURSES
+    # -------------------------------------------------
+
+    if conn.execute("SELECT COUNT(*) FROM courses").fetchone()[0] == 0:
+        courses = [
+            (
+                "Form 1 Mathematics",
+                "Form 1",
+                "Build strong foundations in mathematics.",
+                5
+            ),
+            (
+                "Form 2 Mathematics",
+                "Form 2",
+                "Master key Form 2 concepts and exam skills.",
+                5
+            ),
+            (
+                "Form 3 Mathematics",
+                "Form 3",
+                "Develop problem-solving and examination confidence.",
+                5
+            ),
+            (
+                "O-Level Mathematics",
+                "Form 4 / O-Level",
+                "Complete revision, past papers and exam strategy.",
+                10
+            ),
+            (
+                "O-Level Science",
+                "Form 4 / O-Level",
+                "Science concepts, practical thinking and exam practice.",
+                10
+            ),
+            (
+                "O-Level Geography",
+                "Form 4 / O-Level",
+                "Geography concepts, maps, data and examination practice.",
+                10
+            ),
+            (
+                "A-Level History",
+                "Lower 6 / A-Level",
+                "Structured history lessons and essay practice.",
+                10
+            ),
+        ]
+
+        conn.executemany(
+            "INSERT INTO courses(title,level,description,price) VALUES(?,?,?,?)",
+            courses
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # LESSONS
+    # -------------------------------------------------
+
+    if conn.execute("SELECT COUNT(*) FROM lessons").fetchone()[0] == 0:
+
+        course_rows = conn.execute(
+            "SELECT id,title FROM courses"
+        ).fetchall()
+
+        for c in course_rows:
+            lessons = [
+                (
+                    c["id"],
+                    "Welcome & Study Strategy",
+                    f"Welcome to {c['title']}. Set a weekly study timetable, watch the lesson video, read the notes and complete the quiz.",
+                    "",
+                    1
+                ),
+                (
+                    c["id"],
+                    "Core Concepts",
+                    "Learn the core ideas for this module. Add your teacher video URL in the admin area or directly in the database when ready.",
+                    "",
+                    2
+                ),
+                (
+                    c["id"],
+                    "Exam Practice",
+                    "Work through examination-style questions and check each answer carefully.",
+                    "",
+                    3
+                ),
+            ]
+
+            conn.executemany(
+                """
+                INSERT INTO lessons
+                (course_id,title,content,video_url,position)
+                VALUES(?,?,?,?,?)
+                """,
+                lessons
+            )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # FORM 1 MATHEMATICS QUIZ
+    # -------------------------------------------------
+
+    form1_course = conn.execute(
+        "SELECT id FROM courses WHERE title='Form 1 Mathematics'"
+    ).fetchone()
+
+    if form1_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (form1_course["id"],)
+    ).fetchone()[0] == 0:
+
+        form1_questions = [
+            (
+                form1_course["id"],
+                "What is 15 + 27?",
+                "32",
+                "42",
+                "52",
+                "62",
+                "B"
+            ),
+            (
+                form1_course["id"],
+                "What is 7 × 6?",
+                "36",
+                "42",
+                "48",
+                "56",
+                "B"
+            ),
+            (
+                form1_course["id"],
+                "What is the place value of 5 in 3,542?",
+                "5",
+                "50",
+                "500",
+                "5000",
+                "C"
+            ),
+            (
+                form1_course["id"],
+                "Which fraction is equivalent to 1/2?",
+                "1/3",
+                "2/4",
+                "3/5",
+                "4/5",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            form1_questions
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # FORM 2 MATHEMATICS QUIZ
+    # -------------------------------------------------
+
+    form2_course = conn.execute(
+        "SELECT id FROM courses WHERE title='Form 2 Mathematics'"
+    ).fetchone()
+
+    if form2_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (form2_course["id"],)
+    ).fetchone()[0] == 0:
+
+        form2_questions = [
+            (
+                form2_course["id"],
+                "Solve: x + 7 = 15",
+                "6",
+                "7",
+                "8",
+                "9",
+                "C"
+            ),
+            (
+                form2_course["id"],
+                "What is 25% of 80?",
+                "10",
+                "15",
+                "20",
+                "25",
+                "C"
+            ),
+            (
+                form2_course["id"],
+                "What is the perimeter of a square with side length 6 cm?",
+                "12 cm",
+                "18 cm",
+                "24 cm",
+                "36 cm",
+                "C"
+            ),
+            (
+                form2_course["id"],
+                "Simplify: 3x + 2x",
+                "5",
+                "5x",
+                "6x",
+                "x",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            form2_questions
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # FORM 3 MATHEMATICS QUIZ
+    # -------------------------------------------------
+
+    form3_course = conn.execute(
+        "SELECT id FROM courses WHERE title='Form 3 Mathematics'"
+    ).fetchone()
+
+    if form3_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (form3_course["id"],)
+    ).fetchone()[0] == 0:
+
+        form3_questions = [
+            (
+                form3_course["id"],
+                "Solve: 2x + 4 = 12",
+                "2",
+                "4",
+                "6",
+                "8",
+                "B"
+            ),
+            (
+                form3_course["id"],
+                "What is the gradient of the line y = 3x + 2?",
+                "2",
+                "3",
+                "5",
+                "6",
+                "B"
+            ),
+            (
+                form3_course["id"],
+                "What is √81?",
+                "7",
+                "8",
+                "9",
+                "10",
+                "C"
+            ),
+            (
+                form3_course["id"],
+                "A triangle has angles of 50° and 60°. What is the third angle?",
+                "60°",
+                "70°",
+                "80°",
+                "90°",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            form3_questions
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # O-LEVEL MATHEMATICS QUIZ
+    # -------------------------------------------------
+
+    math_course = conn.execute(
+        "SELECT id FROM courses WHERE title='O-Level Mathematics'"
+    ).fetchone()
+
+    if math_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (math_course["id"],)
+    ).fetchone()[0] == 0:
+
+        math_questions = [
+            (
+                math_course["id"],
+                "What is 12 × 8?",
+                "86",
+                "96",
+                "108",
+                "88",
+                "B"
+            ),
+            (
+                math_course["id"],
+                "Solve: 2x = 10",
+                "2",
+                "5",
+                "10",
+                "20",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            math_questions
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # O-LEVEL SCIENCE QUIZ
+    # -------------------------------------------------
+
+    science_course = conn.execute(
+        "SELECT id FROM courses WHERE title='O-Level Science'"
+    ).fetchone()
+
+    if science_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (science_course["id"],)
+    ).fetchone()[0] == 0:
+
+        science_questions = [
+            (
+                science_course["id"],
+                "Which organ pumps blood around the human body?",
+                "Lungs",
+                "Heart",
+                "Kidney",
+                "Liver",
+                "B"
+            ),
+            (
+                science_course["id"],
+                "Which gas is needed for respiration?",
+                "Oxygen",
+                "Nitrogen",
+                "Carbon dioxide",
+                "Hydrogen",
+                "A"
+            ),
+            (
+                science_course["id"],
+                "What is the SI unit of force?",
+                "Joule",
+                "Watt",
+                "Newton",
+                "Pascal",
+                "C"
+            ),
+            (
+                science_course["id"],
+                "Which part of a plant absorbs most water from the soil?",
+                "Flower",
+                "Root",
+                "Leaf",
+                "Fruit",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """
+            INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            science_questions
+        )
+
+        conn.commit()
+
+    # -------------------------------------------------
+    # O-LEVEL GEOGRAPHY QUIZ
+    # -------------------------------------------------
+
+    geography_course = conn.execute(
+        "SELECT id FROM courses WHERE title='O-Level Geography'"
+    ).fetchone()
+
+    if geography_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (geography_course["id"],)
+    ).fetchone()[0] == 0:
+
+        geography_questions = [
+            (
+                geography_course["id"],
+                "Which instrument is used to measure rainfall?",
+                "Thermometer",
+                "Rain gauge",
+                "Barometer",
+                "Anemometer",
+                "B"
+            ),
+            (
+                geography_course["id"],
+                "What is the main cause of day and night?",
+                "The Earth's revolution around the Sun",
+                "The Earth's rotation on its axis",
+                "The movement of the Moon",
+                "Changes in the seasons",
+                "B"
+            ),
+            (
+                geography_course["id"],
+                "Which type of rainfall occurs when moist air is forced to rise over mountains?",
+                "Convectional rainfall",
+                "Relief rainfall        option_d TEXT NOT NULL,
         answer TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS quiz_attempts(
