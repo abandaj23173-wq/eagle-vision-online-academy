@@ -1903,59 +1903,6 @@ def certificate(course_id):
     )
 
 
-# =========================================================
-# ADMIN DASHBOARD
-# =========================================================
-
-@app.route("/admin")
-@admin_required
-def admin():
-
-    pending = db().execute(
-        """
-        SELECT
-            p.*,
-            u.full_name,
-            u.email,
-            c.title
-        FROM payments p
-        JOIN users u
-            ON u.id=p.user_id
-        JOIN courses c
-            ON c.id=p.course_id
-        WHERE p.status='pending'
-        ORDER BY p.id DESC
-        """
-    ).fetchall()
-
-    users = db().execute(
-        """
-        SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            role,
-            created_at
-        FROM users
-        ORDER BY id DESC
-        """
-    ).fetchall()
-
-    courses = db().execute(
-        """
-        SELECT *
-        FROM courses
-        ORDER BY id
-        """
-    ).fetchall()
-
-    return render_template(
-        "admin.html",
-        pending=pending,
-        users=users,
-        courses=courses,
-    )
 
 
 # =========================================================
