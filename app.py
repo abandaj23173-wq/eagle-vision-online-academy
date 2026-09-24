@@ -121,7 +121,66 @@ def init_db():
             ]
             conn.executemany("INSERT INTO lessons(course_id,title,content,video_url,position) VALUES(?,?,?,?,?)", lessons)
         conn.commit()
-    if conn.execute("SELECT COUNT(*) FROM quizzes").fetchone()[0] == 0:
+
+    # Add O-Level Science quiz
+    science_course = conn.execute(
+        "SELECT id FROM courses WHERE title='O-Level Science'"
+    ).fetchone()
+
+    if science_course and conn.execute(
+        "SELECT COUNT(*) FROM quizzes WHERE course_id=?",
+        (science_course["id"],)
+    ).fetchone()[0] == 0:
+
+        science_questions = [
+            (
+                science_course["id"],
+                "Which organ pumps blood around the human body?",
+                "Lungs",
+                "Heart",
+                "Kidney",
+                "Liver",
+                "B"
+            ),
+            (
+                science_course["id"],
+                "Which gas is needed for respiration?",
+                "Oxygen",
+                "Nitrogen",
+                "Carbon dioxide",
+                "Hydrogen",
+                "A"
+            ),
+            (
+                science_course["id"],
+                "What is the SI unit of force?",
+                "Joule",
+                "Watt",
+                "Newton",
+                "Pascal",
+                "C"
+            ),
+            (
+                science_course["id"],
+                "Which part of a plant absorbs most water from the soil?",
+                "Flower",
+                "Root",
+                "Leaf",
+                "Fruit",
+                "B"
+            )
+        ]
+
+        conn.executemany(
+            """INSERT INTO quizzes
+            (course_id,question,option_a,option_b,option_c,option_d,answer)
+            VALUES(?,?,?,?,?,?,?)""",
+            science_questions
+        )
+
+        conn.commit()
+
+    if not conn.execute("SELECT 1 FROM users WHERE email='admin@eaglevisionacademy.co.zw'").fetchone():
         c = conn.execute("SELECT id FROM courses WHERE title='O-Level Mathematics'").fetchone()
         if c:
             conn.execute("""INSERT INTO quizzes(course_id,question,option_a,option_b,option_c,option_d,answer)
