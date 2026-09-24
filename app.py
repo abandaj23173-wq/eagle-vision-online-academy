@@ -554,7 +554,8 @@ def init_db():
     "Relief rainfall",
     "Frontal rainfall",
     "Evaporation",
-    "B"            )
+    "B"          
+)
         ]
     )
 
