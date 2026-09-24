@@ -213,66 +213,448 @@ def init_db():
 
         conn.commit()
 
-    # =====================================================
+        # ====================================================
     # LESSONS
-    # =====================================================
+    # ====================================================
 
-    if conn.execute(
-        "SELECT COUNT(*) FROM lessons"
-    ).fetchone()[0] == 0:
+    course_rows = conn.execute(
+        "SELECT id, title FROM courses"
+    ).fetchall()
 
-        course_rows = conn.execute(
-            "SELECT id, title FROM courses"
-        ).fetchall()
+    lesson_content = {
 
-        for course_row in course_rows:
+        "Form 1 Mathematics": [
+            (
+                "Number Skills",
+                """Numbers are the foundation of mathematics. In this lesson,
+students learn place value, factors, multiples, prime numbers, fractions,
+decimals and percentages.
 
-            lessons = [
-                (
-                    course_row["id"],
-                    "Welcome & Study Strategy",
-                    (
-                        f"Welcome to {course_row['title']}. "
-                        "Set a weekly study timetable, watch the lesson "
-                        "video, read the notes and complete the quiz."
-                    ),
-                    "",
-                    1,
-                ),
-                (
-                    course_row["id"],
-                    "Core Concepts",
-                    (
-                        "Learn the core ideas for this module. "
-                        "Add your teacher video URL in the admin area "
-                        "when ready."
-                    ),
-                    "",
-                    2,
-                ),
-                (
-                    course_row["id"],
-                    "Exam Practice",
-                    (
-                        "Work through examination-style questions "
-                        "and check each answer carefully."
-                    ),
-                    "",
-                    3,
-                ),
-            ]
+Worked example:
+Find 25% of 80.
+25% = 25/100
+25/100 × 80 = 20
 
-            conn.executemany(
+Practice:
+1. Find the factors of 24.
+2. Convert 0.75 into a fraction.
+3. Find 15% of 200.""",
+                1
+            ),
+            (
+                "Algebra Basics",
+                """Algebra uses letters to represent unknown numbers.
+
+Example:
+If x + 7 = 15, subtract 7 from both sides:
+x = 8.
+
+Students should learn to simplify expressions, substitute values and
+solve simple equations.
+
+Practice:
+1. Simplify 3x + 2x.
+2. Solve x + 9 = 17.
+3. Find the value of 2a + 3 when a = 4.""",
+                2
+            ),
+            (
+                "Geometry and Measurement",
+                """Geometry deals with shapes, angles, length, area and volume.
+
+Important ideas include:
+• Angles on a straight line total 180°.
+• Angles around a point total 360°.
+• The area of a rectangle is length × width.
+• The perimeter of a rectangle is 2(length + width).
+
+Practice:
+1. Find the area of a rectangle measuring 8 cm by 5 cm.
+2. Find the perimeter of a rectangle measuring 7 cm by 4 cm.
+3. Find the missing angle on a straight line if one angle is 65°.""",
+                3
+            ),
+        ],
+
+        "Form 2 Mathematics": [
+            (
+                "Algebraic Expressions",
+                """Algebraic expressions contain numbers, variables and operations.
+
+Like terms can be combined.
+
+Example:
+3x + 5x - 2 = 8x - 2.
+
+When multiplying:
+4 × x = 4x.
+
+When substituting x = 3 into 2x + 5:
+2(3) + 5 = 11.
+
+Practice:
+1. Simplify 7x + 3x - 4.
+2. Simplify 5a + 2a + 6.
+3. Find the value of 3x + 2 when x = 4.""",
+                1
+            ),
+            (
+                "Linear Equations and Graphs",
+                """A linear equation can be solved by keeping both sides balanced.
+
+Example:
+3x + 4 = 19
+3x = 15
+x = 5.
+
+Linear graphs can be represented using ordered pairs and coordinate axes.
+
+Remember:
+The horizontal axis is the x-axis.
+The vertical axis is the y-axis.
+
+Practice:
+1. Solve 2x + 7 = 17.
+2. Solve 5x - 3 = 22.
+3. Plot the points (1,2), (2,4) and (3,6).""",
+                2
+            ),
+            (
+                "Geometry and Mensuration",
+                """Mensuration involves measuring lengths, areas and volumes.
+
+For a triangle:
+Area = ½ × base × height.
+
+For a rectangle:
+Area = length × width.
+
+Angles in a triangle add up to 180°.
+
+Example:
+A triangle has angles 50° and 60°.
+Third angle = 180° - 50° - 60° = 70°.
+
+Practice:
+1. Find the area of a triangle with base 10 cm and height 6 cm.
+2. Find the missing angle in a triangle with angles 45° and 75°.
+3. Find the area of a rectangle measuring 12 cm by 5 cm.""",
+                3
+            ),
+        ],
+
+        "Form 3 Mathematics": [
+            (
+                "Advanced Algebra",
+                """Form 3 algebra develops skills in equations, factorisation
+and algebraic manipulation.
+
+Example:
+x² + 5x + 6
+= (x + 2)(x + 3).
+
+Students should practise collecting like terms, expanding brackets and
+factorising expressions.
+
+Practice:
+1. Expand (x + 3)(x + 2).
+2. Factorise x² + 7x + 12.
+3. Solve 2x + 5 = 17.""",
+                1
+            ),
+            (
+                "Functions and Graphs",
+                """A function connects an input value to an output value.
+
+For y = 2x + 1:
+
+If x = 1:
+y = 2(1) + 1 = 3.
+
+If x = 2:
+y = 2(2) + 1 = 5.
+
+Tables of values can be used to plot straight-line graphs.
+
+Practice:
+1. Find y when x = 4 for y = 3x + 2.
+2. Complete a table for y = 2x - 1.
+3. Plot a straight-line graph from a table of values.""",
+                2
+            ),
+            (
+                "Trigonometry and Geometry",
+                """Trigonometry can be used to calculate unknown sides and angles
+in right-angled triangles.
+
+The three basic ratios are sine, cosine and tangent.
+
+Students should identify the opposite, adjacent and hypotenuse sides
+before choosing a ratio.
+
+Practice:
+1. Identify the hypotenuse in a right-angled triangle.
+2. State which trigonometric ratio uses opposite and adjacent sides.
+3. Use a suitable trigonometric ratio to find an unknown angle.""",
+                3
+            ),
+        ],
+
+        "O-Level Mathematics": [
+            (
+                "Number and Algebra Revision",
+                """O-Level Mathematics requires strong number and algebra skills.
+
+Revise:
+• Fractions
+• Decimals
+• Percentages
+• Indices
+• Standard form
+• Algebraic expressions
+• Equations
+• Simultaneous equations
+
+Example:
+2x + 3 = 11
+2x = 8
+x = 4.
+
+Practice:
+1. Solve 4x - 7 = 21.
+2. Simplify 3a + 5a - 2.
+3. Convert 0.125 into a fraction.""",
+                1
+            ),
+            (
+                "Geometry, Graphs and Trigonometry",
+                """Geometry questions require careful use of angle facts,
+shape properties and measurement formulas.
+
+Important facts:
+Angles in a triangle = 180°.
+Angles in a quadrilateral = 360°.
+
+Trigonometry is especially useful in right-angled triangles.
+
+Students should show working clearly and include correct units.
+
+Practice:
+1. Find a missing angle in a triangle.
+2. Calculate the area of a circle when the radius is given.
+3. Use trigonometry to find an unknown side.""",
+                2
+            ),
+            (
+                "Statistics and Exam Practice",
+                """Statistics includes mean, median, mode and range.
+
+Example:
+For 2, 4, 6, 8, 10:
+Mean = 30 ÷ 5 = 6.
+
+Exam technique is also important. Read every question carefully,
+show your working and check your final answer.
+
+Practice:
+1. Find the mean of 4, 6, 8 and 10.
+2. Find the range of 3, 9, 5, 12 and 7.
+3. Attempt a past-examination-style mathematics question.""",
+                3
+            ),
+        ],
+
+        "O-Level Science": [
+            (
+                "Cells and Living Organisms",
+                """Cells are the basic units of living organisms.
+
+Plant cells contain structures such as the cell wall, cell membrane,
+cytoplasm, nucleus, chloroplasts and a large permanent vacuole.
+
+Animal cells contain a cell membrane, cytoplasm and nucleus but do not
+have a cell wall or chloroplasts.
+
+Practice:
+1. State the function of the nucleus.
+2. Name a structure found in plant cells but not animal cells.
+3. Explain why chloroplasts are important to plants.""",
+                1
+            ),
+            (
+                "Matter and Chemical Reactions",
+                """Matter exists mainly as solids, liquids and gases.
+
+Chemical reactions produce new substances.
+
+Signs of a chemical reaction may include a colour change, gas production,
+temperature change or formation of a precipitate.
+
+Students should learn to identify reactants and products.
+
+Practice:
+1. Name the three common states of matter.
+2. Give one sign of a chemical reaction.
+3. Distinguish between a physical and chemical change.""",
+                2
+            ),
+            (
+                "Forces, Energy and Practical Skills",
+                """Forces can change the motion or shape of objects.
+
+Energy can be transferred between different forms.
+
+Science examinations also test practical skills such as identifying
+variables, recording results, drawing tables and interpreting graphs.
+
+Practice:
+1. Give two effects of a force.
+2. Name two forms of energy.
+3. Identify the independent variable in a simple experiment.""",
+                3
+            ),
+        ],
+
+        "O-Level Geography": [
+            (
+                "Mapwork Skills",
+                """Mapwork is an important part of Geography.
+
+Students should understand grid references, direction, scale, distance,
+symbols and contour lines.
+
+Always read the map carefully before answering questions.
+
+Practice:
+1. What is a grid reference used for?
+2. What information does a map scale provide?
+3. Explain what closely spaced contour lines indicate.""",
+                1
+            ),
+            (
+                "Physical Geography",
+                """Physical Geography studies natural processes and features.
+
+Topics include weather, climate, rivers, rocks, soils and landforms.
+
+Rivers can erode, transport and deposit material.
+
+Practice:
+1. Name three processes of river erosion.
+2. Explain how a river can transport sediment.
+3. Distinguish between weather and climate.""",
+                2
+            ),
+            (
+                "Human Geography and Environment",
+                """Human Geography examines how people interact with places.
+
+Topics include population, settlement, agriculture, industry,
+transport and environmental management.
+
+Students should learn causes, effects and possible solutions when
+answering environmental questions.
+
+Practice:
+1. Give two factors affecting population distribution.
+2. State two environmental problems caused by human activity.
+3. Suggest one way of conserving natural resources.""",
+                3
+            ),
+        ],
+
+        "A-Level History": [
+            (
+                "Zimbabwe and African History",
+                """History involves studying change and continuity over time.
+
+Students should identify causes, events, consequences and significance.
+
+When answering an essay question, develop arguments and support them
+with relevant historical evidence.
+
+Practice:
+1. Explain two causes of a major historical event.
+2. Identify two consequences of a historical development.
+3. Write a paragraph using specific historical evidence.""",
+                1
+            ),
+            (
+                "Source Analysis",
+                """Historical sources can include speeches, letters,
+photographs, newspapers and official documents.
+
+When analysing a source, consider its content, origin, purpose,
+context and reliability.
+
+Do not simply copy the source. Explain what the evidence means.
+
+Practice:
+1. Identify the purpose of a historical source.
+2. Explain one reason why a source may be biased.
+3. Compare information from two different sources.""",
+                2
+            ),
+            (
+                "Essay Writing and Examination Skills",
+                """A strong History essay needs a clear argument,
+well-developed paragraphs and relevant evidence.
+
+A useful paragraph structure is:
+Point → Evidence → Explanation → Link.
+
+Always answer the exact question asked and organise your ideas logically.
+
+Practice:
+1. Write an introduction to a History essay.
+2. Develop one argument using supporting evidence.
+3. Write a conclusion that answers the question directly.""",
+                3
+            ),
+        ],
+    }
+
+    for course_row in course_rows:
+
+        course_id = course_row["id"]
+        course_title = course_row["title"]
+
+        lessons = lesson_content.get(course_title, [])
+
+        for title, content, position in lessons:
+
+            existing = conn.execute(
                 """
-                INSERT INTO lessons
-                (course_id, title, content, video_url, position)
-                VALUES (?, ?, ?, ?, ?)
+                SELECT id
+                FROM lessons
+                WHERE course_id = ? AND position = ?
                 """,
-                lessons,
-            )
+                (course_id, position),
+            ).fetchone()
 
-        conn.commit()
+            if existing:
 
+                conn.execute(
+                    """
+                    UPDATE lessons
+                    SET title = ?, content = ?
+                    WHERE id = ?
+                    """,
+                    (title, content, existing["id"]),
+                )
+
+            else:
+
+                conn.execute(
+                    """
+                    INSERT INTO lessons
+                    (course_id, title, content, video_url, position)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (course_id, title, content, "", position),
+                )
+
+    conn.commit()
     # =====================================================
     # FORM 1 MATHEMATICS QUIZ
     # =====================================================
