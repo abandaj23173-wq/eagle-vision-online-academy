@@ -3,38 +3,80 @@
 {% block content %}
 
 <div class="card">
+
     <h1>{{ lesson["title"] }}</h1>
 
-    <p><strong>Course:</strong> {{ course["title"] }}</p>
+    <p>
+        <strong>Course:</strong> {{ course["title"] }}
+    </p>
 
     <hr>
 
-    <h2>Lesson Notes</h2>
+    <h2>📚 Lesson Notes</h2>
 
-    <div>
+    <div style="line-height: 1.7; font-size: 17px;">
         {{ lesson["content"] }}
     </div>
 
     {% if lesson["video_url"] %}
         <hr>
 
-        <h2>Lesson Video</h2>
+        <h2>🎥 Lesson Video</h2>
 
         <p>
-            <a href="{{ lesson["video_url"] }}" target="_blank">
-                ▶ Watch Lesson Video
-            </a>
+            Watch the lesson video carefully before completing the lesson.
         </p>
+
+        <a href="{{ lesson["video_url"] }}"
+           target="_blank"
+           style="display:inline-block; padding:12px 18px; background:#1f6feb; color:white; text-decoration:none; border-radius:8px;">
+            ▶ Watch Lesson Video
+        </a>
     {% endif %}
 
     <hr>
 
-    <form method="POST" action="{{ url_for('complete_lesson', lesson_id=lesson['id']) }}">
-        <button type="submit">
+    <h2>📝 Practice</h2>
+
+    <p>
+        After studying the notes and watching the video, review the
+        important ideas from this lesson and practise questions related
+        to the topic.
+    </p>
+
+    <div style="padding:15px; background:#f5f5f5; border-radius:8px;">
+        <strong>Study Tip:</strong>
+        Try to explain what you have learned without looking at your notes.
+        This helps you remember the work for examinations.
+    </div>
+
+    <hr>
+
+    <h2>✅ Complete Lesson</h2>
+
+    <p>
+        When you have finished studying this lesson, tap the button below.
+    </p>
+
+    <form method="POST"
+          action="{{ url_for('complete_lesson', lesson_id=lesson['id']) }}">
+
+        <button type="submit"
+                style="padding:12px 20px; border:0; border-radius:8px; cursor:pointer;">
             ✅ Mark Lesson Complete
         </button>
+
     </form>
 
+    <br>
+
+    <a href="{{ url_for('course', course_id=course['id']) }}">
+        ← Back to Course
+    </a>
+
+</div>
+
+{% endblock %}
     <br>
 
     <a href="{{ url_for('course', course_id=course['id']) }}">
