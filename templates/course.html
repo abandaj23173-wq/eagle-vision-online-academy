@@ -1,3 +1,164 @@
-{% extends "base.html" %}{% block content %}<div class="container"><span class="pill">{{course.level}}</span><h1>{{course.title}}</h1><p>{{course.description}}</p>{% if not enrollment %}<form method="post" action="{{url_for('enrol',course_id=course.id)}}"><button class="btn">Request Enrolment — ${{"%.2f"|format(course.price)}}</button></form>{% elif enrollment.status != 'active' %}<p class="flash">Enrolment: {{enrollment.status}} <a class="btn" href="{{url_for('pay',course_id=course.id)}}">Submit Payment</a></p>{% else %}<p class="flash">Course Active ✅</p>{% endif %}
-<h2>Lessons</h2>{% for l in lessons %}<div class="lesson"><strong>{{l.position}}. {{l.title}}</strong><p>{{l.content}}</p>{% if l.video_url %}<a class="btn" href="{{l.video_url}}" target="_blank">Watch Video</a>{% endif %}{% if enrollment and enrollment.status=='active' %}{% if l.completed %}<span> ✅ Completed</span>{% else %}<form style="display:inline" method="post" action="{{url_for('complete_lesson',lesson_id=l.id)}}"><button class="btn dark">Mark Complete</button></form>{% endif %}{% endif %}</div>{% endfor %}
-{% if enrollment and enrollment.status=='active' %}<h2>Assessment</h2><a class="btn" href="{{url_for('quiz',course_id=course.id)}}">Take Quiz</a>{% if lessons and lessons|selectattr('completed')|list|length == lessons|length %}<a class="btn dark" href="{{url_for('certificate',course_id=course.id)}}">Download Certificate</a>{% endif %}{% endif %}</div>{% endblock %}
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <span class="pill">{{ course.level }}</span>
+
+    <h1>{{ course.title }}</h1>
+
+    <p>{{ course.description }}</p>
+
+    {% if not enrollment %}
+
+        <form method="post"
+              action="{{ url_for('enrol', course_id=course.id) }}">
+            <button class="btn">
+                Request Enrolment — ${{ "%.2f"|format(course.price) }}
+            </button>
+        </form>
+
+    {% elif enrollment.status != 'active' %}
+
+        <p class="flash">
+            Enrolment: {{ enrollment.status }}
+        </p>
+
+        <a class="btn"
+           href="{{ url_for('pay', course_id=course.id) }}">
+            💳 Submit Payment
+        </a>
+
+    {% else %}
+
+        <div class="card">
+            <h2>🎓 Course Active</h2>
+            <p>You are enrolled in this course. Start learning below.</p>
+        </div>
+
+    {% endif %}
+
+
+    {% if enrollment and enrollment.status == 'active' %}
+
+        <h2>📊 Your Progress</h2>
+
+        {% set completed_count = lessons|selectattr('completed')|list|length %}
+        {% set total_count = lessons|length %}
+
+        {% if total_count > 0 %}
+            {% set progress = (completed_count * 100 / total_count)|round|int %}
+        {% else %}
+            {% set progress = 0 %}
+        {% endif %}
+
+        <div class="card">
+
+            <p>
+                <strong>{{ completed_count }}</strong>
+                of
+                <strong>{{ total_count }}</strong>
+                lessons completed
+            </p>
+
+            <div style="width:100%; background:#ddd; border-radius:10px; overflow:hidden;">
+                <div style="width:{{ progress }}%; padding:8px 0; text-align:center;">
+                    {{ progress }}%
+                </div>
+            </div>
+
+        </div>
+
+
+        <h2>📚 Course Lessons</h2>
+
+        {% for l in lessons %}
+
+            <div class="lesson">
+
+                <h3>
+                    {{ l.position }}. {{ l.title }}
+                </h3>
+
+                <p>
+                    {{ l.content }}
+                </p>
+
+                {% if l.video_url %}
+
+                    <p>
+                        <a class="btn"
+                           href="{{ l.video_url }}"
+                           target="_blank">
+                            🎥 Watch Lesson Video
+                        </a>
+                    </p>
+
+                {% endif %}
+
+
+                {% if l.completed %}
+
+                    <p>
+                        <strong>✅ Lesson Completed</strong>
+                    </p>
+
+                {% else %}
+
+                    <form method="post"
+                          action="{{ url_for('complete_lesson', lesson_id=l.id) }}">
+
+                        <button class="btn dark">
+                            ✅ Mark Lesson Complete
+                        </button>
+
+                    </form>
+
+                {% endif %}
+
+            </div>
+
+        {% endfor %}
+
+
+        <h2>📝 Assessment</h2>
+
+        <div class="card">
+
+            <p>
+                Test your understanding of this course.
+            </p>
+
+            <a class="btn"
+               href="{{ url_for('quiz', course_id=course.id) }}">
+                📝 Take Quiz
+            </a>
+
+        </div>
+
+
+        {% if total_count > 0 and completed_count == total_count %}
+
+            <div class="card">
+
+                <h2>🏆 Course Completed!</h2>
+
+                <p>
+                    You have completed all lessons. Your certificate is now available.
+                </p>
+
+                <a class="btn dark"
+                   href="{{ url_for('certificate', course_id=course.id) }}">
+                    🏆 Download Certificate
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
