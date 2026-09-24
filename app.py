@@ -271,7 +271,7 @@ def lesson(lesson_id):
         course=course,
         enrollment=enrollment)
     
-    @app.route("/lesson/<int:lesson_id>/complete", methods=["POST"])
+@app.route("/lesson/<int:lesson_id>/complete", methods=["POST"])
 @login_required
 def complete_lesson(lesson_id):
     l = db().execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
