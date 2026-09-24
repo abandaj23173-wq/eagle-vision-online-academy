@@ -548,12 +548,17 @@ def init_db():
                 "B"
             ),
             (
-                geography_course["id"],
-                "Which type of rainfall occurs when moist air is forced to rise over mountains?",
-                "Convectional rainfall",
-                "Relief rainfall        option_d TEXT NOT NULL,
-        answer TEXT NOT NULL
-    );
+    geography_course["id"],
+    "Which type of rainfall occurs when moist air is forced to rise over mountains?",
+    "Convectional rainfall",
+    "Relief rainfall",
+    "Frontal rainfall",
+    "Evaporation",
+    "B"            )
+        ]
+    )
+
+    conn.executescript("""
     CREATE TABLE IF NOT EXISTS quiz_attempts(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
