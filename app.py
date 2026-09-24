@@ -2002,11 +2002,254 @@ def approve_payment(payment_id):
             ),
         )
 
+# =========================================================
+# ADMIN DASHBOARD
+# =========================================================
+
+@app.route("/admin")
+@admin_required
+def admin():
+
+    pending = db().execute(
+        """
+        SELECT
+            p.*,
+            u.full_name,
+            u.email,
+            c.title
+        FROM payments p
+        JOIN users u ON u.id=p.user_id
+        JOIN courses c ON c.id=p.course_id
+        WHERE p.status='pending'
+        ORDER BY p.id DESC
+        """
+    ).fetchall()
+
+    users = db().execute(
+        """
+        SELECT id, full_name, email, phone, role, created_at
+        FROM users
+        ORDER BY id DESC
+        """
+    ).fetchall()
+
+    courses = db().execute(
+        """
+        SELECT *
+        FROM courses
+        ORDER BY id
+        """
+    ).fetchall()
+
+    lessons = db().execute(
+        """
+        SELECT
+            l.*,
+            c.title AS course_title
+        FROM lessons l
+        JOIN courses c ON c.id=l.course_id
+        ORDER BY c.id, l.position
+        """
+    ).fetchall()
+
+    return render_template(
+        "admin.html",
+        pending=pending,
+        users=users,
+        courses=courses,
+        lessons=lessons,
+    )
+
+
+# =========================================================
+# APPROVE PAYMENT
+# =========================================================
+
+@app.route(
+    "/admin/payment/<int:payment_id>/approve",
+    methods=["POST"],
+)
+@admin_required
+def approve_payment(payment_id):
+
+    payment = db().execute(
+        """
+        SELECT *
+        FROM payments
+        WHERE id=?
+        """,
+        (payment_id,),
+    ).fetchone()
+
+    if payment:
+
+        db().execute(
+            """
+            UPDATE payments
+            SET status='approved'
+            WHERE id=?
+            """,
+            (payment_id,),
+        )
+
+        db().execute(
+            """
+            UPDATE enrollments
+            SET status='active'
+            WHERE user_id=?
+              AND course_id=?
+            """,
+            (
+                payment["user_id"],
+                payment["course_id"],
+            ),
+        )
+
         db().commit()
 
         flash(
             "Payment approved and course activated."
         )
+
+    return redirect(url_for("admin"))
+
+
+# =========================================================
+# ADD LESSON
+# =========================================================
+
+@app.route(
+    "/admin/lesson/add",
+    methods=["POST"],
+)
+@admin_required
+def add_lesson():
+
+    course_id = request.form.get("course_id")
+    title = request.form.get("title", "").strip()
+    content = request.form.get("content", "").strip()
+    video_url = request.form.get("video_url", "").strip()
+    position = request.form.get("position", "1")
+
+    if not course_id or not title or not content:
+
+        flash("Course, lesson title and lesson notes are required.")
+
+        return redirect(url_for("admin"))
+
+    try:
+        position = int(position)
+
+    except ValueError:
+
+        position = 1
+
+    db().execute(
+        """
+        INSERT INTO lessons
+        (course_id, title, content, video_url, position)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            course_id,
+            title,
+            content,
+            video_url,
+            position,
+        ),
+    )
+
+    db().commit()
+
+    flash("Lesson added successfully.")
+
+    return redirect(url_for("admin"))
+
+
+# =========================================================
+# EDIT LESSON
+# =========================================================
+
+@app.route(
+    "/admin/lesson/<int:lesson_id>/edit",
+    methods=["POST"],
+)
+@admin_required
+def edit_lesson(lesson_id):
+
+    title = request.form.get("title", "").strip()
+    content = request.form.get("content", "").strip()
+    video_url = request.form.get("video_url", "").strip()
+    position = request.form.get("position", "1")
+
+    if not title or not content:
+
+        flash("Lesson title and notes are required.")
+
+        return redirect(url_for("admin"))
+
+    try:
+        position = int(position)
+
+    except ValueError:
+
+        position = 1
+
+    db().execute(
+        """
+        UPDATE lessons
+        SET title=?,
+            content=?,
+            video_url=?,
+            position=?
+        WHERE id=?
+        """,
+        (
+            title,
+            content,
+            video_url,
+            position,
+            lesson_id,
+        ),
+    )
+
+    db().commit()
+
+    flash("Lesson updated successfully.")
+
+    return redirect(url_for("admin"))
+
+
+# =========================================================
+# DELETE LESSON
+# =========================================================
+
+@app.route(
+    "/admin/lesson/<int:lesson_id>/delete",
+    methods=["POST"],
+)
+@admin_required
+def delete_lesson(lesson_id):
+
+    db().execute(
+        """
+        DELETE FROM lesson_progress
+        WHERE lesson_id=?
+        """,
+        (lesson_id,),
+    )
+
+    db().execute(
+        """
+        DELETE FROM lessons
+        WHERE id=?
+        """,
+        (lesson_id,),
+    )
+
+    db().commit()
+
+    flash("Lesson deleted successfully.")
 
     return redirect(url_for("admin"))
 
