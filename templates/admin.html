@@ -1,1 +1,294 @@
-{% extends "base.html" %}{% block content %}<div class="container"><h1>🦅 Admin Dashboard</h1><p class="muted">Manage student payments and academy courses.</p><hr><h2>💳 Pending Payments</h2><table class="table"><tr><th>Student</th><th>Course</th><th>Method</th><th>Reference</th><th>Action</th></tr>{% for p in pending %}<tr><td><strong>{{p.full_name}}</strong><br>{{p.email}}</td><td>{{p.title}}</td><td>{{p.method}}</td><td><strong>{{p.reference}}</strong></td><td><form method="post" action="{{url_for('approve_payment',payment_id=p.id)}}"><button class="btn">✅ Approve</button></form></td></tr>{% else %}<tr><td colspan="5">No pending payments.</td></tr>{% endfor %}</table><hr><h2>📚 Courses</h2><table class="table"><tr><th>Course</th><th>Level</th><th>Price</th><th>Active</th></tr>{% for c in courses %}<tr><td><strong>{{c.title}}</strong></td><td>{{c.level}}</td><td>${{"%.2f"|format(c.price)}}</td><td>{% if c.active %}✅ Active{% else %}❌ Inactive{% endif %}</td></tr>{% endfor %}</table><hr><p><strong>Admin:</strong> Secure administrator access</p></div>{% endblock %}
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <h1>🦅 Admin Dashboard</h1>
+
+    <p class="muted">
+        Manage students, payments, courses and lessons.
+    </p>
+
+    <hr>
+
+    <h2>💳 Pending Payments</h2>
+
+    <table class="table">
+
+        <tr>
+            <th>Student</th>
+            <th>Course</th>
+            <th>Method</th>
+            <th>Reference</th>
+            <th>Action</th>
+        </tr>
+
+        {% for p in pending %}
+
+        <tr>
+
+            <td>
+                <strong>{{ p.full_name }}</strong><br>
+                {{ p.email }}
+            </td>
+
+            <td>{{ p.title }}</td>
+
+            <td>{{ p.method }}</td>
+
+            <td>
+                <strong>{{ p.reference }}</strong>
+            </td>
+
+            <td>
+
+                <form method="post"
+                      action="{{ url_for('approve_payment', payment_id=p.id) }}">
+
+                    <button class="btn">
+                        ✅ Approve
+                    </button>
+
+                </form>
+
+            </td>
+
+        </tr>
+
+        {% else %}
+
+        <tr>
+            <td colspan="5">
+                No pending payments.
+            </td>
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+
+    <hr>
+
+    <h2>📚 Courses</h2>
+
+    <table class="table">
+
+        <tr>
+            <th>Course</th>
+            <th>Level</th>
+            <th>Price</th>
+            <th>Status</th>
+        </tr>
+
+        {% for c in courses %}
+
+        <tr>
+
+            <td>
+                <strong>{{ c.title }}</strong>
+            </td>
+
+            <td>{{ c.level }}</td>
+
+            <td>
+                ${{ "%.2f"|format(c.price) }}
+            </td>
+
+            <td>
+
+                {% if c.active %}
+                    ✅ Active
+                {% else %}
+                    ❌ Inactive
+                {% endif %}
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+
+    <hr>
+
+    <h2>➕ Add New Lesson</h2>
+
+    <div class="card">
+
+        <form method="post"
+              action="{{ url_for('add_lesson') }}">
+
+            <label>Course</label>
+
+            <select name="course_id" required>
+
+                <option value="">
+                    Select a course
+                </option>
+
+                {% for c in courses %}
+
+                <option value="{{ c.id }}">
+                    {{ c.title }}
+                </option>
+
+                {% endfor %}
+
+            </select>
+
+
+            <label>Lesson Title</label>
+
+            <input
+                type="text"
+                name="title"
+                placeholder="Example: Simultaneous Equations"
+                required
+            >
+
+
+            <label>Lesson Notes</label>
+
+            <textarea
+                name="content"
+                rows="8"
+                placeholder="Enter the lesson notes, examples and practice questions..."
+                required
+            ></textarea>
+
+
+            <label>Video URL (optional)</label>
+
+            <input
+                type="url"
+                name="video_url"
+                placeholder="https://youtube.com/..."
+            >
+
+
+            <label>Lesson Position</label>
+
+            <input
+                type="number"
+                name="position"
+                value="1"
+                min="1"
+                required
+            >
+
+
+            <button class="btn" type="submit">
+                ➕ Add Lesson
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <hr>
+
+    <h2>📖 Manage Existing Lessons</h2>
+
+    {% for l in lessons %}
+
+    <div class="card">
+
+        <h3>
+            {{ l.course_title }}
+        </h3>
+
+        <p>
+            <strong>Lesson {{ l.position }}:</strong>
+            {{ l.title }}
+        </p>
+
+
+        <form method="post"
+              action="{{ url_for('edit_lesson', lesson_id=l.id) }}">
+
+            <label>Lesson Title</label>
+
+            <input
+                type="text"
+                name="title"
+                value="{{ l.title }}"
+                required
+            >
+
+
+            <label>Lesson Notes</label>
+
+            <textarea
+                name="content"
+                rows="8"
+                required
+            >{{ l.content }}</textarea>
+
+
+            <label>Video URL</label>
+
+            <input
+                type="url"
+                name="video_url"
+                value="{{ l.video_url or '' }}"
+            >
+
+
+            <label>Lesson Position</label>
+
+            <input
+                type="number"
+                name="position"
+                value="{{ l.position }}"
+                min="1"
+                required
+            >
+
+
+            <button class="btn" type="submit">
+                ✏️ Save Changes
+            </button>
+
+        </form>
+
+
+        <form method="post"
+              action="{{ url_for('delete_lesson', lesson_id=l.id) }}"
+              style="margin-top:10px;">
+
+            <button
+                class="btn dark"
+                type="submit"
+                onclick="return confirm('Delete this lesson?');"
+            >
+                🗑️ Delete Lesson
+            </button>
+
+        </form>
+
+    </div>
+
+    {% else %}
+
+    <p>
+        No lessons found.
+    </p>
+
+    {% endfor %}
+
+
+    <hr>
+
+    <p>
+        <strong>Admin:</strong>
+        Secure administrator access
+    </p>
+
+</div>
+
+{% endblock %}
