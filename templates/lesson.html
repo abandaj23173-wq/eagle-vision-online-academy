@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card">
+    <h1>{{ lesson["title"] }}</h1>
+
+    <p><strong>Course:</strong> {{ course["title"] }}</p>
+
+    <hr>
+
+    <h2>Lesson Notes</h2>
+
+    <div>
+        {{ lesson["content"] }}
+    </div>
+
+    {% if lesson["video_url"] %}
+        <hr>
+
+        <h2>Lesson Video</h2>
+
+        <p>
+            <a href="{{ lesson["video_url"] }}" target="_blank">
+                ▶ Watch Lesson Video
+            </a>
+        </p>
+    {% endif %}
+
+    <hr>
+
+    <form method="POST" action="{{ url_for('complete_lesson', lesson_id=lesson['id']) }}">
+        <button type="submit">
+            ✅ Mark Lesson Complete
+        </button>
+    </form>
+
+    <br>
+
+    <a href="{{ url_for('course', course_id=course['id']) }}">
+        ← Back to Course
+    </a>
+</div>
+
+{% endblock %}
