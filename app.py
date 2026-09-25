@@ -2194,7 +2194,704 @@ def toggle_course(course_id):
 with app.app_context():
     init_db()
 
+# =========================================================
+# BATCH 1 — QUIZ MANAGER, RESULTS & STUDENT MANAGEMENT
+# =========================================================
 
+# ---------------------------------------------------------
+# ADMIN QUIZ MANAGER
+# ---------------------------------------------------------
+
+@app.route("/admin/quizzes/<int:course_id>")
+@admin_required
+def admin_quiz_manager(course_id):
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not course:
+        flash("Course not found.")
+        return redirect(url_for("admin"))
+
+    questions = db().execute(
+        """
+        SELECT *
+        FROM quizzes
+        WHERE course_id=?
+        ORDER BY id
+        """,
+        (course_id,),
+    ).fetchall()
+
+    return render_template(
+        "admin_quizzes.html",
+        course=course,
+        questions=questions,
+    )
+
+
+# ---------------------------------------------------------
+# ADD QUIZ QUESTION
+# ---------------------------------------------------------
+
+@app.route(
+    "/admin/quizzes/<int:course_id>/add",
+    methods=["GET", "POST"],
+)
+@admin_required
+def admin_quiz_add(course_id):
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not course:
+        flash("Course not found.")
+        return redirect(url_for("admin"))
+
+    if request.method == "POST":
+
+        question = request.form.get(
+            "question", ""
+        ).strip()
+
+        option_a = request.form.get(
+            "option_a", ""
+        ).strip()
+
+        option_b = request.form.get(
+            "option_b", ""
+        ).strip()
+
+        option_c = request.form.get(
+            "option_c", ""
+        ).strip()
+
+        option_d = request.form.get(
+            "option_d", ""
+        ).strip()
+
+        answer = request.form.get(
+            "answer", ""
+        ).strip().upper()
+
+        if not all([
+            question,
+            option_a,
+            option_b,
+            option_c,
+            option_d,
+            answer,
+        ]):
+
+            flash("Please complete every question field.")
+
+            return redirect(
+                url_for(
+                    "admin_quiz_add",
+                    course_id=course_id,
+                )
+            )
+
+        if answer not in ["A", "B", "C", "D"]:
+
+            flash(
+                "Correct answer must be A, B, C or D."
+            )
+
+            return redirect(
+                url_for(
+                    "admin_quiz_add",
+                    course_id=course_id,
+                )
+            )
+
+        db().execute(
+            """
+            INSERT INTO quizzes
+            (
+                course_id,
+                question,
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                answer
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                course_id,
+                question,
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                answer,
+            ),
+        )
+
+        db().commit()
+
+        flash("Quiz question added successfully.")
+
+        return redirect(
+            url_for(
+                "admin_quiz_manager",
+                course_id=course_id,
+            )
+        )
+
+    return render_template(
+        "admin_quiz_form.html",
+        course=course,
+        question=None,
+    )
+
+
+# ---------------------------------------------------------
+# EDIT QUIZ QUESTION
+# ---------------------------------------------------------
+
+@app.route(
+    "/admin/quizzes/question/<int:question_id>/edit",
+    methods=["GET", "POST"],
+)
+@admin_required
+def admin_quiz_edit(question_id):
+
+    question = db().execute(
+        "SELECT * FROM quizzes WHERE id=?",
+        (question_id,),
+    ).fetchone()
+
+    if not question:
+
+        flash("Quiz question not found.")
+        return redirect(url_for("admin"))
+
+    if request.method == "POST":
+
+        text = request.form.get(
+            "question", ""
+        ).strip()
+
+        option_a = request.form.get(
+            "option_a", ""
+        ).strip()
+
+        option_b = request.form.get(
+            "option_b", ""
+        ).strip()
+
+        option_c = request.form.get(
+            "option_c", ""
+        ).strip()
+
+        option_d = request.form.get(
+            "option_d", ""
+        ).strip()
+
+        answer = request.form.get(
+            "answer", ""
+        ).strip().upper()
+
+        if not all([
+            text,
+            option_a,
+            option_b,
+            option_c,
+            option_d,
+            answer,
+        ]):
+
+            flash("Please complete every question field.")
+
+            return redirect(
+                url_for(
+                    "admin_quiz_edit",
+                    question_id=question_id,
+                )
+            )
+
+        if answer not in ["A", "B", "C", "D"]:
+
+            flash(
+                "Correct answer must be A, B, C or D."
+            )
+
+            return redirect(
+                url_for(
+                    "admin_quiz_edit",
+                    question_id=question_id,
+                )
+            )
+
+        db().execute(
+            """
+            UPDATE quizzes
+            SET
+                question=?,
+                option_a=?,
+                option_b=?,
+                option_c=?,
+                option_d=?,
+                answer=?
+            WHERE id=?
+            """,
+            (
+                text,
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                answer,
+                question_id,
+            ),
+        )
+
+        db().commit()
+
+        flash("Quiz question updated.")
+
+        return redirect(
+            url_for(
+                "admin_quiz_manager",
+                course_id=question["course_id"],
+            )
+        )
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (question["course_id"],),
+    ).fetchone()
+
+    return render_template(
+        "admin_quiz_form.html",
+        course=course,
+        question=question,
+    )
+
+
+# ---------------------------------------------------------
+# DELETE QUIZ QUESTION
+# ---------------------------------------------------------
+
+@app.route(
+    "/admin/quizzes/question/<int:question_id>/delete",
+    methods=["POST"],
+)
+@admin_required
+def admin_quiz_delete(question_id):
+
+    question = db().execute(
+        "SELECT * FROM quizzes WHERE id=?",
+        (question_id,),
+    ).fetchone()
+
+    if not question:
+
+        flash("Quiz question not found.")
+        return redirect(url_for("admin"))
+
+    # Remove attempts connected to this question first.
+    db().execute(
+        """
+        DELETE FROM quiz_attempts
+        WHERE quiz_id=?
+        """,
+        (question_id,),
+    )
+
+    db().execute(
+        """
+        DELETE FROM quizzes
+        WHERE id=?
+        """,
+        (question_id,),
+    )
+
+    db().commit()
+
+    flash("Quiz question deleted.")
+
+    return redirect(
+        url_for(
+            "admin_quiz_manager",
+            course_id=question["course_id"],
+        )
+    )
+
+
+# ---------------------------------------------------------
+# STUDENT QUIZ RESULTS
+# ---------------------------------------------------------
+
+@app.route("/results/<int:course_id>")
+@login_required
+def student_results(course_id):
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not course:
+
+        flash("Course not found.")
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    attempts = db().execute(
+        """
+        SELECT
+            qa.id,
+            qa.score,
+            qa.attempted_at
+        FROM quiz_attempts qa
+        JOIN quizzes q
+            ON q.id=qa.quiz_id
+        WHERE qa.user_id=?
+          AND q.course_id=?
+        ORDER BY qa.id DESC
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchall()
+
+    total_questions = db().execute(
+        """
+        SELECT COUNT(*)
+        FROM quizzes
+        WHERE course_id=?
+        """,
+        (course_id,),
+    ).fetchone()[0]
+
+    return render_template(
+        "results.html",
+        course=course,
+        attempts=attempts,
+        total_questions=total_questions,
+    )
+
+
+# ---------------------------------------------------------
+# ADMIN — STUDENT MANAGEMENT
+# ---------------------------------------------------------
+
+@app.route("/admin/students")
+@admin_required
+def admin_students():
+
+    students = db().execute(
+        """
+        SELECT
+            u.id,
+            u.full_name,
+            u.email,
+            u.phone,
+            u.role,
+            u.created_at,
+            COUNT(e.id) AS enrollment_count
+        FROM users u
+        LEFT JOIN enrollments e
+            ON e.user_id=u.id
+        WHERE u.role='student'
+        GROUP BY u.id
+        ORDER BY u.id DESC
+        """
+    ).fetchall()
+
+    return render_template(
+        "admin_students.html",
+        students=students,
+    )
+
+
+# ---------------------------------------------------------
+# ADMIN — VIEW STUDENT
+# ---------------------------------------------------------
+
+@app.route("/admin/student/<int:user_id>")
+@admin_required
+def admin_student_view(user_id):
+
+    student = db().execute(
+        """
+        SELECT *
+        FROM users
+        WHERE id=?
+          AND role='student'
+        """,
+        (user_id,),
+    ).fetchone()
+
+    if not student:
+
+        flash("Student not found.")
+
+        return redirect(
+            url_for("admin_students")
+        )
+
+    enrollments = db().execute(
+        """
+        SELECT
+            e.*,
+            c.title,
+            c.level
+        FROM enrollments e
+        JOIN courses c
+            ON c.id=e.course_id
+        WHERE e.user_id=?
+        ORDER BY e.id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+    attempts = db().execute(
+        """
+        SELECT
+            qa.id,
+            qa.score,
+            qa.attempted_at,
+            c.title AS course_title
+        FROM quiz_attempts qa
+        JOIN quizzes q
+            ON q.id=qa.quiz_id
+        JOIN courses c
+            ON c.id=q.course_id
+        WHERE qa.user_id=?
+        ORDER BY qa.id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+    return render_template(
+        "admin_student_view.html",
+        student=student,
+        enrollments=enrollments,
+        attempts=attempts,
+    )
+
+
+# ---------------------------------------------------------
+# CERTIFICATE
+# ---------------------------------------------------------
+
+@app.route("/my-certificate/<int:course_id>")
+@login_required
+def my_certificate(course_id):
+
+    course = db().execute(
+        "SELECT * FROM courses WHERE id=?",
+        (course_id,),
+    ).fetchone()
+
+    if not course:
+
+        flash("Course not found.")
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    enrollment = db().execute(
+        """
+        SELECT *
+        FROM enrollments
+        WHERE user_id=?
+          AND course_id=?
+          AND status='active'
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchone()
+
+    if not enrollment:
+
+        flash(
+            "You must be enrolled in this course."
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    total_lessons = db().execute(
+        """
+        SELECT COUNT(*)
+        FROM lessons
+        WHERE course_id=?
+        """,
+        (course_id,),
+    ).fetchone()[0]
+
+    completed_lessons = db().execute(
+        """
+        SELECT COUNT(*)
+        FROM lesson_progress lp
+        JOIN lessons l
+            ON l.id=lp.lesson_id
+        WHERE lp.user_id=?
+          AND l.course_id=?
+          AND lp.completed=1
+        """,
+        (
+            g.user["id"],
+            course_id,
+        ),
+    ).fetchone()[0]
+
+    if (
+        total_lessons == 0
+        or completed_lessons < total_lessons
+    ):
+
+        flash(
+            "Complete all lessons before receiving your certificate."
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id,
+            )
+        )
+
+    filename = (
+        f"certificate_{g.user['id']}_{course_id}.pdf"
+    )
+
+    filepath = os.path.join(
+        CERT_DIR,
+        filename,
+    )
+
+    pdf = canvas.Canvas(filepath)
+
+    pdf.setTitle(
+        "Eagle Vision Academy Certificate"
+    )
+
+    pdf.setFont(
+        "Helvetica-Bold",
+        24,
+    )
+
+    pdf.drawCentredString(
+        300,
+        720,
+                "EAGLE VISION ACADEMY",
+    )
+
+    pdf.setFont(
+        "Helvetica-Bold",
+        20,
+    )
+
+    pdf.drawCentredString(
+        300,
+        650,
+        "CERTIFICATE OF COMPLETION",
+    )
+
+    pdf.setFont(
+        "Helvetica",
+        14,
+    )
+
+    pdf.drawCentredString(
+        300,
+        590,
+        "This certificate is proudly presented to",
+    )
+
+    pdf.setFont(
+        "Helvetica-Bold",
+        20,
+    )
+
+    pdf.drawCentredString(
+        300,
+        545,
+        g.user["full_name"],
+    )
+
+    pdf.setFont(
+        "Helvetica",
+        14,
+    )
+
+    pdf.drawCentredString(
+        300,
+        495,
+        "for successfully completing",
+    )
+
+    pdf.setFont(
+        "Helvetica-Bold",
+        18,
+    )
+
+    pdf.drawCentredString(
+        300,
+        455,
+        course["title"],
+    )
+
+    pdf.setFont(
+        "Helvetica",
+        11,
+    )
+
+    pdf.drawCentredString(
+        300,
+        390,
+        "Eagle Vision Online Academy",
+    )
+
+    pdf.drawCentredString(
+        300,
+        365,
+        datetime.utcnow().strftime(
+            "%d %B %Y"
+        ),
+    )
+
+    pdf.save()
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# RUN APPLICATION
+# =========================================================
+
+if __name__ == "__main__":
+    app.run(debug=True)
 # =========================================================
 # RUN APPLICATION
 # =========================================================
