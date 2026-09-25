@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="form">
+
+    {% if question %}
+
+        <h2>✏️ Edit Quiz Question</h2>
+
+        <p class="muted">
+            Edit the question and choose the correct answer.
+        </p>
+
+        <form method="post">
+
+            <label>Question</label>
+            <textarea
+                name="question"
+                rows="4"
+                required
+            >{{ question["question"] }}</textarea>
+
+            <label>Option A</label>
+            <input
+                type="text"
+                name="option_a"
+                value="{{ question['option_a'] }}"
+                required
+            >
+
+            <label>Option B</label>
+            <input
+                type="text"
+                name="option_b"
+                value="{{ question['option_b'] }}"
+                required
+            >
+
+            <label>Option C</label>
+            <input
+                type="text"
+                name="option_c"
+                value="{{ question['option_c'] }}"
+                required
+            >
+
+            <label>Option D</label>
+            <input
+                type="text"
+                name="option_d"
+                value="{{ question['option_d'] }}"
+                required
+            >
+
+            <label>Correct Answer</label>
+
+            <select name="answer" required>
+
+                <option
+                    value="A"
+                    {% if question["answer"] == "A" %}selected{% endif %}
+                >
+                    A
+                </option>
+
+                <option
+                    value="B"
+                    {% if question["answer"] == "B" %}selected{% endif %}
+                >
+                    B
+                </option>
+
+                <option
+                    value="C"
+                    {% if question["answer"] == "C" %}selected{% endif %}
+                >
+                    C
+                </option>
+
+                <option
+                    value="D"
+                    {% if question["answer"] == "D" %}selected{% endif %}
+                >
+                    D
+                </option>
+
+            </select>
+
+            <br><br>
+
+            <button
+                type="submit"
+                class="btn"
+                style="width:100%; padding:14px;"
+            >
+                💾 Save Changes
+            </button>
+
+        </form>
+
+    {% else %}
+
+        <h2>➕ Add Quiz Question</h2>
+
+        <p class="muted">
+            Course: {{ course["title"] }}
+        </p>
+
+        <form method="post">
+
+            <label>Question</label>
+
+            <textarea
+                name="question"
+                rows="4"
+                placeholder="Enter the quiz question..."
+                required
+            ></textarea>
+
+            <label>Option A</label>
+
+            <input
+                type="text"
+                name="option_a"
+                placeholder="Enter option A"
+                required
+            >
+
+            <label>Option B</label>
+
+            <input
+                type="text"
+                name="option_b"
+                placeholder="Enter option B"
+                required
+            >
+
+            <label>Option C</label>
+
+            <input
+                type="text"
+                name="option_c"
+                placeholder="Enter option C"
+                required
+            >
+
+            <label>Option D</label>
+
+            <input
+                type="text"
+                name="option_d"
+                placeholder="Enter option D"
+                required
+            >
+
+            <label>Correct Answer</label>
+
+            <select name="answer" required>
+
+                <option value="">Select correct answer</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+
+            </select>
+
+            <br><br>
+
+            <button
+                type="submit"
+                class="btn"
+                style="width:100%; padding:14px;"
+            >
+                ➕ Add Question
+            </button>
+
+        </form>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for(
+        'admin_quiz_manager',
+        course_id=course['id']
+    ) }}">
+        ← Back to Quiz Manager
+    </a>
+
+</div>
+
+{% endblock %}
