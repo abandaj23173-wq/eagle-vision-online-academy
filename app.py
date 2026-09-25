@@ -1905,49 +1905,6 @@ def certificate(course_id):
 
 
 
-# =========================================================
-# APPROVE PAYMENT
-# =========================================================
-
-@app.route(
-    "/admin/payment/<int:payment_id>/approve",
-    methods=["POST"],
-)
-@admin_required
-def approve_payment(payment_id):
-
-    payment = db().execute(
-        """
-        SELECT *
-        FROM payments
-        WHERE id=?
-        """,
-        (payment_id,),
-    ).fetchone()
-
-    if payment:
-
-        db().execute(
-            """
-            UPDATE payments
-            SET status='approved'
-            WHERE id=?
-            """,
-            (payment_id,),
-        )
-
-        db().execute(
-            """
-            UPDATE enrollments
-            SET status='active'
-            WHERE user_id=?
-              AND course_id=?
-            """,
-            (
-                payment["user_id"],
-                payment["course_id"],
-            ),
-        )
 
 # =========================================================
 # ADMIN DASHBOARD
