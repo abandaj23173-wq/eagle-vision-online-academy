@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="form">
+
+    <h2>📝 Quiz Manager</h2>
+
+    <h3>{{ course["title"] }}</h3>
+
+    <p class="muted">
+        Manage quiz questions for this course.
+    </p>
+
+    <a
+        href="{{ url_for('admin_quiz_add', course_id=course['id']) }}"
+        class="btn"
+        style="display:inline-block; margin-bottom:20px;"
+    >
+        ➕ Add Question
+    </a>
+
+    <hr>
+
+    {% if questions %}
+
+        {% for q in questions %}
+
+        <div
+            class="lesson"
+            style="margin-bottom:18px;"
+        >
+
+            <h3>
+                {{ loop.index }}. {{ q["question"] }}
+            </h3>
+
+            <p>A. {{ q["option_a"] }}</p>
+            <p>B. {{ q["option_b"] }}</p>
+            <p>C. {{ q["option_c"] }}</p>
+            <p>D. {{ q["option_d"] }}</p>
+
+            <p>
+                <strong>Correct answer:</strong>
+                {{ q["answer"] }}
+            </p>
+
+            <a
+                href="{{ url_for(
+                    'admin_quiz_edit',
+                    question_id=q['id']
+                ) }}"
+                class="btn"
+            >
+                ✏️ Edit
+            </a>
+
+            <form
+                method="post"
+                action="{{ url_for(
+                    'admin_quiz_delete',
+                    question_id=q['id']
+                ) }}"
+                style="display:inline;"
+                onsubmit="return confirm('Delete this question?');"
+            >
+                <button
+                    type="submit"
+                    class="btn"
+                    style="background:#b42318;"
+                >
+                    🗑️ Delete
+                </button>
+            </form>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card">
+            <p>
+                No quiz questions have been added to this course yet.
+            </p>
+
+            <p>
+                Tap <strong>Add Question</strong> to create the first one.
+            </p>
+        </div>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for('admin') }}">
+        ← Back to Admin Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
