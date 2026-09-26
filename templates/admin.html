@@ -7,11 +7,34 @@
     <h1>🦅 Admin Dashboard</h1>
 
     <p class="muted">
-        Manage students, payments, courses, lessons and quizzes.
+        Manage students, teachers, payments, courses, lessons and quizzes.
     </p>
 
     <hr>
 
+    <!-- TEACHER MANAGEMENT -->
+    <h2>👨‍🏫 Teacher Management</h2>
+
+    <div class="card">
+
+        <p>
+            Create teacher accounts, assign courses to teachers,
+            and manage your teaching team.
+        </p>
+
+        <a
+            href="{{ url_for('admin_teachers') }}"
+            class="btn"
+        >
+            👨‍🏫 Manage Teachers
+        </a>
+
+    </div>
+
+
+    <hr>
+
+    <!-- PENDING PAYMENTS -->
     <h2>💳 Pending Payments</h2>
 
     <table class="table">
@@ -43,10 +66,12 @@
 
             <td>
 
-                <form method="post"
-                      action="{{ url_for('approve_payment', payment_id=p.id) }}">
+                <form
+                    method="post"
+                    action="{{ url_for('approve_payment', payment_id=p.id) }}"
+                >
 
-                    <button class="btn">
+                    <button class="btn" type="submit">
                         ✅ Approve
                     </button>
 
@@ -71,6 +96,7 @@
 
     <hr>
 
+    <!-- COURSES -->
     <h2>📚 Courses</h2>
 
     <table class="table">
@@ -90,7 +116,9 @@
                 <strong>{{ c.title }}</strong>
             </td>
 
-            <td>{{ c.level }}</td>
+            <td>
+                {{ c.level }}
+            </td>
 
             <td>
                 ${{ "%.2f"|format(c.price) }}
@@ -115,12 +143,15 @@
 
     <hr>
 
+    <!-- ADD LESSON -->
     <h2>➕ Add New Lesson</h2>
 
     <div class="card">
 
-        <form method="post"
-              action="{{ url_for('add_lesson') }}">
+        <form
+            method="post"
+            action="{{ url_for('add_lesson') }}"
+        >
 
             <label>Course</label>
 
@@ -181,7 +212,10 @@
             >
 
 
-            <button class="btn" type="submit">
+            <button
+                class="btn"
+                type="submit"
+            >
                 ➕ Add Lesson
             </button>
 
@@ -192,6 +226,7 @@
 
     <hr>
 
+    <!-- MANAGE LESSONS -->
     <h2>📖 Manage Existing Lessons</h2>
 
     {% for l in lessons %}
@@ -208,8 +243,10 @@
         </p>
 
 
-        <form method="post"
-              action="{{ url_for('edit_lesson', lesson_id=l.id) }}">
+        <form
+            method="post"
+            action="{{ url_for('edit_lesson', lesson_id=l.id) }}"
+        >
 
             <label>Lesson Title</label>
 
@@ -250,16 +287,21 @@
             >
 
 
-            <button class="btn" type="submit">
+            <button
+                class="btn"
+                type="submit"
+            >
                 ✏️ Save Changes
             </button>
 
         </form>
 
 
-        <form method="post"
-              action="{{ url_for('delete_lesson', lesson_id=l.id) }}"
-              style="margin-top:10px;">
+        <form
+            method="post"
+            action="{{ url_for('delete_lesson', lesson_id=l.id) }}"
+            style="margin-top:10px;"
+        >
 
             <button
                 class="btn dark"
@@ -284,6 +326,7 @@
 
     <hr>
 
+    <!-- QUIZ MANAGEMENT -->
     <h2>📝 Quiz Management</h2>
 
     <div class="card">
@@ -296,15 +339,14 @@
 
         <div style="margin-bottom:15px;">
 
-            <strong>{{ c.title }}</strong>
+            <strong>
+                {{ c.title }}
+            </strong>
 
             <br><br>
 
             <a
-                href="{{ url_for(
-                    'admin_quiz_manager',
-                    course_id=c.id
-                ) }}"
+                href="{{ url_for('admin_quiz_manager', course_id=c.id) }}"
                 class="btn"
             >
                 📝 Manage Quiz
@@ -319,6 +361,7 @@
 
     <hr>
 
+    <!-- STUDENT MANAGEMENT -->
     <h2>👨‍🎓 Student Management</h2>
 
     <div class="card">
@@ -339,9 +382,27 @@
 
     <hr>
 
+    <!-- ADMIN INFORMATION -->
+    <div class="card">
+
+        <p>
+            <strong>Admin:</strong>
+            Secure administrator access
+        </p>
+
+    </div>
+
+
+    <hr>
+
+    <!-- LOGOUT -->
     <p>
-        <strong>Admin:</strong>
-        Secure administrator access
+        <a
+            href="{{ url_for('logout') }}"
+            class="btn"
+        >
+            🚪 Logout
+        </a>
     </p>
 
 </div>
