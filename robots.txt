@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://eagle-vision-online-academy.onrender.com/sitemap.xml
