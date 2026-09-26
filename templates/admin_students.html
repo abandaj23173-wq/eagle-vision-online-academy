@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="form">
+
+    <h2>👨‍🎓 Student Management</h2>
+
+    <p class="muted">
+        View registered students and their enrolments.
+    </p>
+
+    <hr>
+
+    {% if students %}
+
+        {% for student in students %}
+
+        <div
+            class="lesson"
+            style="margin-bottom:18px;"
+        >
+
+            <h3>{{ student["full_name"] }}</h3>
+
+            <p>
+                <strong>Email:</strong>
+                {{ student["email"] }}
+            </p>
+
+            <p>
+                <strong>Phone:</strong>
+                {{ student["phone"] or "Not provided" }}
+            </p>
+
+            <p>
+                <strong>Enrolments:</strong>
+                {{ student["enrollment_count"] }}
+            </p>
+
+            <p>
+                <strong>Registered:</strong>
+                {{ student["created_at"] }}
+            </p>
+
+            <a
+                href="{{ url_for(
+                    'admin_student_view',
+                    user_id=student['id']
+                ) }}"
+                class="btn"
+            >
+                👁️ View Student
+            </a>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card">
+            <p>
+                No students have registered yet.
+            </p>
+        </div>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for('admin') }}">
+        ← Back to Admin Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
