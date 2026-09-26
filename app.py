@@ -1813,7 +1813,7 @@ def quiz(course_id):
         for q in questions:
 
             selected = request.form.get(
-                f"q{q['id']"
+                f"q{q['id']}"
             )
 
             if selected == q["answer"]:
