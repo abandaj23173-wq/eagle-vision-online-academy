@@ -2,7 +2,46 @@
 
 {% block content %}
 
-<!-- SEO / Structured Information -->
+<!-- =========================
+     SEO META INFORMATION
+     ========================= -->
+
+<title>Eagle Vision Studies | Online Academy & Exam Preparation Zimbabwe</title>
+
+<meta name="description"
+      content="Eagle Vision Studies is an online learning academy in Zimbabwe offering Mathematics, Science, Geography, History, revision, quizzes and examination preparation for students.">
+
+<meta name="keywords"
+      content="Eagle Vision Studies, Eagle Vision Online Academy, online school Zimbabwe, online learning Zimbabwe, O Level revision Zimbabwe, O Level Mathematics, O Level Science, O Level Geography, A Level History, exam preparation Zimbabwe, online education Zimbabwe">
+
+<meta name="robots" content="index, follow">
+
+<link rel="canonical" href="{{ request.url_root }}">
+
+
+<!-- =========================
+     SOCIAL MEDIA / SHARING
+     ========================= -->
+
+<meta property="og:type" content="website">
+
+<meta property="og:title"
+      content="Eagle Vision Studies | Online Academy Zimbabwe">
+
+<meta property="og:description"
+      content="Learn online, revise, practise and prepare for examinations with Eagle Vision Studies.">
+
+<meta property="og:url"
+      content="{{ request.url_root }}">
+
+<meta property="og:site_name"
+      content="Eagle Vision Studies">
+
+
+<!-- =========================
+     ORGANIZATION STRUCTURED DATA
+     ========================= -->
+
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -10,7 +49,7 @@
   "name": "Eagle Vision Studies",
   "alternateName": "Eagle Vision Online Academy",
   "url": "{{ request.url_root }}",
-  "description": "Eagle Vision Studies provides online learning, revision, quizzes, examination preparation and educational courses for students.",
+  "description": "Eagle Vision Studies provides online learning, revision, quizzes and examination preparation for students in Zimbabwe.",
   "telephone": "+263717410018",
   "address": {
     "@type": "PostalAddress",
@@ -19,24 +58,32 @@
 }
 </script>
 
+
+<!-- =========================
+     COURSE LIST STRUCTURED DATA
+     ========================= -->
+
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "ItemList",
-  "name": "Eagle Vision Studies Courses",
+  "name": "Eagle Vision Studies Online Courses",
   "itemListElement": [
     {% for c in courses %}
     {
-      "@type": "Course",
+      "@type": "ListItem",
       "position": {{ loop.index }},
-      "name": {{ c.title|tojson }},
-      "description": {{ c.description|tojson }},
-      "provider": {
-        "@type": "EducationalOrganization",
-        "name": "Eagle Vision Studies",
-        "url": "{{ request.url_root }}"
-      },
-      "url": "{{ url_for('course', course_id=c.id, _external=True) }}"
+      "url": "{{ url_for('course', course_id=c.id, _external=True) }}",
+      "item": {
+        "@type": "Course",
+        "name": {{ c.title|tojson }},
+        "description": {{ c.description|tojson }},
+        "provider": {
+          "@type": "EducationalOrganization",
+          "name": "Eagle Vision Studies",
+          "url": "{{ request.url_root }}"
+        }
+      }
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ]
@@ -44,9 +91,28 @@
 </script>
 
 
+<!-- =========================
+     WEBSITE STRUCTURED DATA
+     ========================= -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Eagle Vision Studies",
+  "alternateName": "Eagle Vision Online Academy",
+  "url": "{{ request.url_root }}"
+}
+</script>
+
+
+<!-- =========================
+     HERO SECTION
+     ========================= -->
+
 <section class="hero">
 
-    <span class="pill">Your Future Starts Here</span>
+    <span class="pill">Online Learning • Revision • Exam Preparation</span>
 
     <h1>
         Welcome to <em>Eagle Vision</em><br>
@@ -54,9 +120,10 @@
     </h1>
 
     <p>
-        Online learning, revision and examination preparation for students
-        in Zimbabwe. Access lessons, notes, quizzes, past-paper practice
-        and track your academic progress from anywhere.
+        Eagle Vision Studies is an online learning platform in Zimbabwe
+        helping students learn, revise and prepare for examinations.
+        Access lessons, study materials, quizzes and examination practice
+        from your phone, tablet or computer.
     </p>
 
     <a class="btn" href="{{ url_for('register') }}">
@@ -68,7 +135,10 @@
 
 <div class="container">
 
-    <!-- About Eagle Vision -->
+
+    <!-- =========================
+         ABOUT EAGLE VISION
+         ========================= -->
 
     <section>
 
@@ -76,34 +146,37 @@
 
         <p>
             <strong>Eagle Vision Studies</strong> is an online education
-            platform designed to help students learn, revise and prepare
-            for examinations.
+            platform designed to support students with learning, revision
+            and examination preparation.
         </p>
 
         <p>
             Students can access structured lessons, study notes, quizzes,
-            revision materials and examination practice from their phone,
-            tablet or computer.
+            revision materials and examination practice from their mobile
+            phones, tablets or computers.
         </p>
 
         <p>
-            Eagle Vision supports students who want flexible online learning
-            alongside their normal studies, helping them prepare with
-            greater confidence and consistency.
+            Our goal is to provide students with flexible educational
+            support that allows them to study consistently and prepare
+            for examinations from wherever they are.
         </p>
 
     </section>
 
 
-    <!-- Courses -->
+    <!-- =========================
+         COURSES
+         ========================= -->
 
     <section>
 
-        <h2>Our Online Courses</h2>
+        <h2>Online Courses at Eagle Vision Studies</h2>
 
         <p>
-            Explore Eagle Vision Studies courses for different levels and
-            subjects. Choose a course, enrol and begin learning online.
+            Explore our online courses for different levels and subjects.
+            Choose a course, enrol and begin your learning journey with
+            Eagle Vision Studies.
         </p>
 
         <div class="cards">
@@ -112,9 +185,13 @@
 
             <article class="card">
 
-                <span class="pill">{{ c.level }}</span>
+                <span class="pill">
+                    {{ c.level }}
+                </span>
 
-                <h3>{{ c.title }}</h3>
+                <h3>
+                    {{ c.title }}
+                </h3>
 
                 <p class="muted">
                     {{ c.description }}
@@ -151,7 +228,9 @@
     </section>
 
 
-    <!-- Subjects and Exam Preparation -->
+    <!-- =========================
+         SUBJECTS
+         ========================= -->
 
     <section>
 
@@ -160,43 +239,59 @@
         </h2>
 
         <p>
-            Prepare for your examinations with lessons, quizzes and
-            examination practice designed to help you understand your
-            subjects and improve your study routine.
+            Prepare for your examinations through structured lessons,
+            revision materials, quizzes and examination-style practice.
+            Eagle Vision Studies supports students who want additional
+            learning resources alongside their normal studies.
         </p>
 
         <div class="cards">
 
             <div class="card">
+
                 <h3>📚 Mathematics</h3>
+
                 <p>
-                    Build mathematical understanding through lessons,
-                    practice questions and assessments.
+                    Develop mathematical understanding through lessons,
+                    practice questions, revision and assessments.
                 </p>
+
             </div>
 
+
             <div class="card">
+
                 <h3>🔬 Science</h3>
+
                 <p>
                     Study important science concepts and practise
                     examination-style questions.
                 </p>
+
             </div>
 
+
             <div class="card">
+
                 <h3>🌍 Geography</h3>
-                <p>
-                    Revise geographical concepts and prepare for
-                    examination questions.
-                </p>
-            </div>
 
-            <div class="card">
-                <h3>📖 History</h3>
                 <p>
-                    Study historical topics and develop skills for
+                    Revise geographical concepts and develop skills for
                     answering examination questions.
                 </p>
+
+            </div>
+
+
+            <div class="card">
+
+                <h3>📖 History</h3>
+
+                <p>
+                    Study historical topics and practise structured
+                    examination answers.
+                </p>
+
             </div>
 
         </div>
@@ -204,23 +299,51 @@
     </section>
 
 
-    <!-- Why Choose Eagle Vision -->
+    <!-- =========================
+         O LEVEL
+         ========================= -->
 
     <section>
 
         <h2 style="margin-top:50px">
-            Why Choose Eagle Vision Studies?
+            O Level Revision and Exam Preparation
+        </h2>
+
+        <p>
+            Eagle Vision Studies provides learning and revision support
+            for students preparing for O Level examinations. Students
+            can study important topics, practise questions, take quizzes
+            and monitor their progress online.
+        </p>
+
+        <p>
+            Regular revision and examination practice can help students
+            become familiar with question formats, improve their
+            understanding and develop better study habits.
+        </p>
+
+    </section>
+
+
+    <!-- =========================
+         WHY EAGLE VISION
+         ========================= -->
+
+    <section>
+
+        <h2 style="margin-top:50px">
+            Learning Features
         </h2>
 
         <div class="cards">
 
             <div class="card">
 
-                <h3>📚 Quality Learning</h3>
+                <h3>📚 Structured Lessons</h3>
 
                 <p>
-                    Access structured lessons and learning materials
-                    designed to support your studies.
+                    Follow organised lessons and study materials designed
+                    to support your learning.
                 </p>
 
             </div>
@@ -228,11 +351,11 @@
 
             <div class="card">
 
-                <h3>📝 Examination Preparation</h3>
+                <h3>📝 Quizzes and Assessments</h3>
 
                 <p>
-                    Practise with quizzes, revision materials and
-                    examination questions.
+                    Test your understanding through quizzes and
+                    examination-style practice.
                 </p>
 
             </div>
@@ -243,8 +366,8 @@
                 <h3>💻 Learn Online</h3>
 
                 <p>
-                    Study from anywhere using your phone, tablet or
-                    computer.
+                    Access your learning materials using a phone,
+                    tablet or computer.
                 </p>
 
             </div>
@@ -266,7 +389,9 @@
     </section>
 
 
-    <!-- How It Works -->
+    <!-- =========================
+         HOW IT WORKS
+         ========================= -->
 
     <section>
 
@@ -300,10 +425,10 @@
 
             <div class="card">
 
-                <h3>3. Learn</h3>
+                <h3>3. Enrol</h3>
 
                 <p>
-                    Study lessons, read notes and practise questions.
+                    Request enrolment and follow the payment instructions.
                 </p>
 
             </div>
@@ -311,10 +436,11 @@
 
             <div class="card">
 
-                <h3>4. Track Your Progress</h3>
+                <h3>4. Learn and Track Progress</h3>
 
                 <p>
-                    Complete lessons and assessments as you learn.
+                    Study lessons, complete assessments and monitor
+                    your progress.
                 </p>
 
             </div>
@@ -324,7 +450,9 @@
     </section>
 
 
-    <!-- Zimbabwe Students -->
+    <!-- =========================
+         ZIMBABWE STUDENTS
+         ========================= -->
 
     <section>
 
@@ -333,23 +461,29 @@
         </h2>
 
         <p>
-            Eagle Vision Studies is building a flexible learning environment
-            for students who want access to educational resources online.
-            Students can use their mobile phones, tablets or computers to
-            access their courses and continue studying wherever they are.
+            Eagle Vision Studies is building a flexible online learning
+            environment for students in Zimbabwe who want access to
+            educational resources wherever they are.
         </p>
 
         <p>
-            Whether you are preparing for school examinations, revising
-            important topics or looking for additional learning support,
-            Eagle Vision provides an online environment where you can
-            study at your own pace.
+            Students can use mobile phones, tablets or computers to
+            access their courses and continue studying at their own pace.
+        </p>
+
+        <p>
+            Whether you are revising for school examinations, studying
+            important topics or looking for additional academic support,
+            Eagle Vision provides an online environment for learning,
+            revision and examination preparation.
         </p>
 
     </section>
 
 
-    <!-- Final Call To Action -->
+    <!-- =========================
+         CALL TO ACTION
+         ========================= -->
 
     <section style="text-align:center; margin-top:60px; margin-bottom:40px">
 
@@ -358,8 +492,8 @@
         </h2>
 
         <p>
-            Join Eagle Vision Online Academy and take the next step
-            towards achieving your academic goals.
+            Join Eagle Vision Online Academy and begin your online
+            learning journey today.
         </p>
 
         <a class="btn" href="{{ url_for('register') }}">
@@ -367,12 +501,17 @@
         </a>
 
         <p style="margin-top:20px">
+
             <strong>Need more information?</strong><br>
+
             WhatsApp or call:
+
             <strong>+263 71 741 0018</strong>
+
         </p>
 
     </section>
+
 
 </div>
 
