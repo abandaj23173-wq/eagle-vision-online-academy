@@ -1,5 +1,86 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}Eagle Vision Online Academy{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}"></head><body>
-<header class="nav"><a class="brand" href="{{ url_for('index') }}">🦅 EAGLE VISION <span>ONLINE ACADEMY</span></a><div>{% if g.user %}<a href="{{ url_for('dashboard') }}">Dashboard</a>{% if g.user.role == 'admin' %}<a href="{{ url_for('admin') }}">Admin</a>{% endif %}<a href="{{ url_for('logout') }}">Logout</a>{% else %}<a href="{{ url_for('login') }}">Login</a><a class="btn" href="{{ url_for('register') }}">Enrol Now</a>{% endif %}</div></header>
-{% with messages=get_flashed_messages() %}{% for message in messages %}<div class="container"><div class="flash">{{ message }}</div></div>{% endfor %}{% endwith %}
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{% block title %}Eagle Vision Online Academy | Online Learning & Exam Preparation{% endblock %}</title>
+
+    <meta name="description" content="Eagle Vision Online Academy provides online learning, revision lessons, quizzes, notes and examination preparation for students. Learn, revise and achieve with Eagle Vision Studies.">
+
+    <meta name="google-site-verification" content="2rZ0sPehSJetI-ZI-Auw5f9Rqj_-FJ6SLdXojboH4nk">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<header class="nav">
+
+    <a class="brand" href="{{ url_for('index') }}">
+        🦅 EAGLE VISION <span>ONLINE ACADEMY</span>
+    </a>
+
+    <div>
+
+        {% if g.user %}
+
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+
+            {% if g.user.role == 'admin' %}
+                <a href="{{ url_for('admin') }}">Admin</a>
+            {% endif %}
+
+            <a href="{{ url_for('logout') }}">Logout</a>
+
+        {% else %}
+
+            <a href="{{ url_for('login') }}">Login</a>
+
+            <a class="btn" href="{{ url_for('register') }}">
+                Enrol Now
+            </a>
+
+        {% endif %}
+
+    </div>
+
+</header>
+
+
+{% with messages = get_flashed_messages() %}
+
+    {% for message in messages %}
+
+        <div class="container">
+            <div class="flash">
+                {{ message }}
+            </div>
+        </div>
+
+    {% endfor %}
+
+{% endwith %}
+
+
 {% block content %}{% endblock %}
-<footer class="footer">🦅 <strong>Eagle Vision Online Academy</strong> — Learn. Revise. Achieve. <br>WhatsApp: +263 71 741 0018</footer></body></html>
+
+
+<footer class="footer">
+
+    🦅 <strong>Eagle Vision Online Academy</strong>
+    — Learn. Revise. Achieve.
+
+    <br>
+
+    WhatsApp:
+    <a href="https://wa.me/263717410018">
+        +263 71 741 0018
+    </a>
+
+</footer>
+
+</body>
+</html>
