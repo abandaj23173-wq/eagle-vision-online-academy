@@ -7,7 +7,7 @@
     <h1>🦅 Admin Dashboard</h1>
 
     <p class="muted">
-        Manage students, payments, courses and lessons.
+        Manage students, payments, courses, lessons and quizzes.
     </p>
 
     <hr>
@@ -280,6 +280,61 @@
     </p>
 
     {% endfor %}
+
+
+    <hr>
+
+    <h2>📝 Quiz Management</h2>
+
+    <div class="card">
+
+        <p>
+            Create, edit and delete quiz questions for each course.
+        </p>
+
+        {% for c in courses %}
+
+        <div style="margin-bottom:15px;">
+
+            <strong>{{ c.title }}</strong>
+
+            <br><br>
+
+            <a
+                href="{{ url_for(
+                    'admin_quiz_manager',
+                    course_id=c.id
+                ) }}"
+                class="btn"
+            >
+                📝 Manage Quiz
+            </a>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    <hr>
+
+    <h2>👨‍🎓 Student Management</h2>
+
+    <div class="card">
+
+        <p>
+            View registered students, enrolments and quiz attempts.
+        </p>
+
+        <a
+            href="{{ url_for('admin_students') }}"
+            class="btn"
+        >
+            👨‍🎓 View Students
+        </a>
+
+    </div>
 
 
     <hr>
