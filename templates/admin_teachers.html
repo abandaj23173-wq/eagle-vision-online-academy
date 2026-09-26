@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Manage Teachers - Eagle Vision Academy</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        header {
+            background: #102a43;
+            color: white;
+            padding: 20px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        header p {
+            margin: 6px 0 0;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        h2 {
+            color: #102a43;
+            margin-top: 0;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin: 7px 0 12px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+        }
+
+        button {
+            background: #102a43;
+            color: white;
+            border: none;
+            padding: 11px 16px;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .teacher {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .teacher h3 {
+            margin-top: 0;
+            color: #102a43;
+        }
+
+        .assignment {
+            background: #f4f6f8;
+            padding: 10px;
+            border-radius: 7px;
+            margin-top: 8px;
+        }
+
+        .remove {
+            background: #b42318;
+            margin-left: 8px;
+        }
+
+        .message {
+            background: #e8f5e9;
+            padding: 12px;
+            border-radius: 7px;
+            margin-bottom: 15px;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #102a43;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 0 10px;
+            }
+
+            header {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Eagle Vision Academy</h1>
+    <p>Teacher Management</p>
+</header>
+
+<div class="container">
+
+    <a href="{{ url_for('admin') }}" class="back">
+        ← Back to Admin Dashboard
+    </a>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+
+    <!-- CREATE TEACHER -->
+
+    <div class="card">
+
+        <h2>Create Teacher Account</h2>
+
+        <form method="POST"
+              action="{{ url_for('admin_add_teacher') }}">
+
+            <label>Teacher Full Name</label>
+
+            <input
+                type="text"
+                name="full_name"
+                placeholder="Enter teacher name"
+                required
+            >
+
+            <label>Email</label>
+
+            <input
+                type="email"
+                name="email"
+                placeholder="teacher@example.com"
+                required
+            >
+
+            <label>Phone Number</label>
+
+            <input
+                type="text"
+                name="phone"
+                placeholder="+263..."
+            >
+
+            <label>Password</label>
+
+            <input
+                type="password"
+                name="password"
+                placeholder="Minimum 8 characters"
+                minlength="8"
+                required
+            >
+
+            <button type="submit">
+                Create Teacher
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- TEACHERS -->
+
+    <div class="card">
+
+        <h2>Registered Teachers</h2>
+
+        {% if teachers %}
+
+            {% for teacher in teachers %}
+
+                <div class="teacher">
+
+                    <h3>
+                        {{ teacher.full_name }}
+                    </h3>
+
+                    <p>
+                        <strong>Email:</strong>
+                        {{ teacher.email }}
+                    </p>
+
+                    <p>
+                        <strong>Phone:</strong>
+                        {{ teacher.phone or 'Not provided' }}
+                    </p>
+
+                    <p>
+                        <strong>Courses Assigned:</strong>
+                        {{ teacher.course_count }}
+                    </p>
+
+
+                    <!-- ASSIGN COURSE -->
+
+                    <form
+                        method="POST"
+                        action="{{ url_for(
+                            'admin_assign_teacher',
+                            teacher_id=teacher.id
+                        ) }}"
+                    >
+
+                        <label>
+                            Assign Course
+                        </label>
+
+                        <select
+                            name="course_id"
+                            required
+                        >
+
+                            <option value="">
+                                Select a course
+                            </option>
+
+                            {% for course in courses %}
+
+                                <option value="{{ course.id }}">
+                                    {{ course.title }}
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                        <button type="submit">
+                            Assign Course
+                        </button>
+
+                    </form>
+
+
+                    <!-- CURRENT ASSIGNMENTS -->
+
+                    <h4>
+                        Assigned Courses
+                    </h4>
+
+                    {% set teacher_assignments =
+                        assignments
+                        | selectattr(
+                            'teacher_id',
+                            'equalto',
+                            teacher.id
+                        )
+                        | list
+                    %}
+
+                    {% if teacher_assignments %}
+
+                        {% for assignment in teacher_assignments %}
+
+                            <div class="assignment">
+
+                                <strong>
+                                    {{ assignment.course_title }}
+                                </strong>
+
+                                <form
+                                    method="POST"
+                                    style="display:inline"
+                                    action="{{ url_for(
+                                        'admin_remove_teacher',
+                                        teacher_id=teacher.id,
+                                        course_id=assignment.course_id
+                                    ) }}"
+                                >
+
+                                    <button
+                                        type="submit"
+                                        class="remove"
+                                    >
+                                        Remove
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        {% endfor %}
+
+                    {% else %}
+
+                        <p>
+                            No courses assigned yet.
+                        </p>
+
+                    {% endif %}
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>
+                No teacher accounts have been created yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+</body>
+</html>
