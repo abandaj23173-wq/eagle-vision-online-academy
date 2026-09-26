@@ -1218,7 +1218,6 @@ def teacher_required(view):
 
     return wrapped
 
-
 # =========================================================
 # HOME
 # =========================================================
@@ -1238,6 +1237,78 @@ def index():
     return render_template(
         "index.html",
         courses=courses,
+    )
+
+
+# =========================================================
+# SEO - ROBOTS.TXT
+# =========================================================
+
+@app.route("/robots.txt")
+def robots_txt():
+
+    content = """User-agent: *
+Allow: /
+
+Sitemap: https://eagle-vision-online-academy.onrender.com/sitemap.xml
+"""
+
+    return (
+        content,
+        200,
+        {
+            "Content-Type": "text/plain"
+        }
+    )
+
+
+# =========================================================
+# SEO - SITEMAP.XML
+# =========================================================
+
+@app.route("/sitemap.xml")
+def sitemap():
+
+    courses = db().execute(
+        """
+        SELECT id
+        FROM courses
+        WHERE active=1
+        ORDER BY id
+        """
+    ).fetchall()
+
+    urls = [
+        "https://eagle-vision-online-academy.onrender.com/",
+        "https://eagle-vision-online-academy.onrender.com/register",
+        "https://eagle-vision-online-academy.onrender.com/login",
+    ]
+
+    for course in courses:
+
+        urls.append(
+            f"https://eagle-vision-online-academy.onrender.com/course/{course['id']}"
+        )
+
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+"""
+
+    for url in urls:
+
+        xml += f"""    <url>
+        <loc>{url}</loc>
+    </url>
+"""
+
+    xml += "</urlset>"
+
+    return (
+        xml,
+        200,
+        {
+            "Content-Type": "application/xml"
+        }
     )
 
 
