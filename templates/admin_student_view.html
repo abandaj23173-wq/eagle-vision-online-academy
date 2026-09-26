@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="form">
+
+    <h2>👤 Student Details</h2>
+
+    <div class="card">
+
+        <h3>{{ student["full_name"] }}</h3>
+
+        <p>
+            <strong>Email:</strong>
+            {{ student["email"] }}
+        </p>
+
+        <p>
+            <strong>Phone:</strong>
+            {{ student["phone"] or "Not provided" }}
+        </p>
+
+        <p>
+            <strong>Registered:</strong>
+            {{ student["created_at"] }}
+        </p>
+
+    </div>
+
+    <hr>
+
+    <h3>📚 Enrolments</h3>
+
+    {% if enrollments %}
+
+        {% for enrollment in enrollments %}
+
+        <div class="lesson" style="margin-bottom:15px;">
+
+            <h4>{{ enrollment["title"] }}</h4>
+
+            <p>
+                <strong>Level:</strong>
+                {{ enrollment["level"] }}
+            </p>
+
+            <p>
+                <strong>Status:</strong>
+                {{ enrollment["status"] }}
+            </p>
+
+            <p>
+                <strong>Enrolled:</strong>
+                {{ enrollment["created_at"] }}
+            </p>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card">
+            <p>This student has no course enrolments yet.</p>
+        </div>
+
+    {% endif %}
+
+    <hr>
+
+    <h3>📝 Quiz Attempts</h3>
+
+    {% if attempts %}
+
+        {% for attempt in attempts %}
+
+        <div class="lesson" style="margin-bottom:15px;">
+
+            <h4>{{ attempt["course_title"] }}</h4>
+
+            <p>
+                <strong>Score:</strong>
+                {{ attempt["score"] }}
+            </p>
+
+            <p>
+                <strong>Date:</strong>
+                {{ attempt["attempted_at"] }}
+            </p>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card">
+            <p>This student has not taken any quizzes yet.</p>
+        </div>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for('admin_students') }}">
+        ← Back to Students
+    </a>
+
+</div>
+
+{% endblock %}
