@@ -1959,7 +1959,6 @@ def enrol(course_id):
 def pay(course_id):
 
     user = current_user()
-
     db = get_db()
 
     course = db.execute(
@@ -1972,12 +1971,10 @@ def pay(course_id):
     ).fetchone()
 
     if not course:
-
         flash(
             "Course not found.",
             "danger"
         )
-
         return redirect(
             url_for("dashboard")
         )
@@ -1996,12 +1993,10 @@ def pay(course_id):
     ).fetchone()
 
     if not enrollment:
-
         flash(
             "Please request enrolment before submitting payment.",
             "warning"
         )
-
         return redirect(
             url_for(
                 "course",
@@ -2011,27 +2006,22 @@ def pay(course_id):
 
     if request.method == "POST":
 
-        amount_raw = request.form.get(
-            "amount",
-            ""
-        ).strip()
-
         reference = request.form.get(
             "reference",
             ""
         ).strip()
 
+        # Automatically use the stored course price
         try:
-
-            amount = float(amount_raw)
-
+            amount = float(course["price"] or 0)
         except (TypeError, ValueError):
+            amount = 0
 
+        if amount <= 0:
             flash(
-                "Please enter a valid payment amount.",
+                "This course does not have a valid price.",
                 "danger"
             )
-
             return redirect(
                 url_for(
                     "pay",
@@ -2039,9 +2029,43 @@ def pay(course_id):
                 )
             )
 
-        if amount <= 0:
+        db.execute(
+            """
+            INSERT INTO payments(
+                user_id,
+                course_id,
+                amount,
+                reference,
+                status,
+                created_at
+            )
+            VALUES(?,?,?,?,?,?)
+            """,
+            (
+                user["id"],
+                course_id,
+                amount,
+                reference,
+                "pending",
+                datetime.utcnow().isoformat()
+            )
+        )
 
-            flash(
+        db.commit()
+
+        flash(
+            "Payment submitted successfully. It is waiting for verification.",
+            "success"
+        )
+
+        return redirect(
+            url_for("dashboard")
+        )
+
+    return render_template(
+        "payment.html",
+        course=course
+    )
 # ============================================================
 # PAYMENT SUBMISSION
 # ============================================================
