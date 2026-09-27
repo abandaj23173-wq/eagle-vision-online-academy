@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>📊 Student Participation</h1>
+
+        <h2>{{ course["title"] }}</h2>
+
+        <div class="actions">
+            <a
+                href="{{ url_for(
+                    'teacher_course',
+                    course_id=course['id']
+                ) }}"
+                class="btn secondary"
+            >
+                ← Back to Course
+            </a>
+
+            <a
+                href="{{ url_for(
+                    'teacher_dashboard'
+                ) }}"
+                class="btn secondary"
+            >
+                Teacher Dashboard
+            </a>
+        </div>
+    </div>
+
+
+    <div class="card">
+
+        {% if participation %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Email</th>
+                            <th>Lessons Viewed</th>
+                            <th>Lessons Completed</th>
+                            <th>Quizzes</th>
+                            <th>Activities</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for student in participation %}
+
+                            <tr>
+
+                                <td>
+                                    {{ student["full_name"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["email"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["lessons_viewed"] or 0 }}
+                                </td>
+
+                                <td>
+                                    {{ student["lessons_completed"] or 0 }}
+                                </td>
+
+                                <td>
+                                    {{ student["quizzes_taken"] or 0 }}
+                                </td>
+
+                                <td>
+                                    {{ student["activities_completed"] or 0 }}
+                                </td>
+
+                                <td>
+                                    {{ student["last_seen"] or "Not yet" }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty">
+
+                <h3>No participation data yet.</h3>
+
+                <p>
+                    Student activity will appear here as
+                    students use the course.
+                </p>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background: #f1f1f1;
+}
+
+tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 7px;
+    text-decoration: none;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.empty {
+    text-align: center;
+    padding: 30px;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
