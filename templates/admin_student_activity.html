@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>📊 Student Activity</h1>
+
+        <h2>{{ student["full_name"] }}</h2>
+
+        <p>
+            <strong>Email:</strong>
+            {{ student["email"] }}
+        </p>
+
+        <p>
+            <strong>Phone:</strong>
+            {{ student["phone"] or "Not provided" }}
+        </p>
+
+        <div class="actions">
+            <a
+                href="{{ url_for(
+                    'admin_students'
+                ) }}"
+                class="btn secondary"
+            >
+                ← Students
+            </a>
+
+            <a
+                href="{{ url_for(
+                    'admin_student',
+                    user_id=student['id']
+                ) }}"
+                class="btn secondary"
+            >
+                Student Profile
+            </a>
+        </div>
+    </div>
+
+
+    <div class="card">
+
+        <h2>📈 Activity Summary</h2>
+
+        {% if activity %}
+
+            <div class="stats">
+
+                <div class="stat">
+                    <strong>
+                        {{ activity["lessons_viewed"] or 0 }}
+                    </strong>
+                    <span>Lessons Viewed</span>
+                </div>
+
+                <div class="stat">
+                    <strong>
+                        {{ activity["lessons_completed"] or 0 }}
+                    </strong>
+                    <span>Lessons Completed</span>
+                </div>
+
+                <div class="stat">
+                    <strong>
+                        {{ activity["quizzes_taken"] or 0 }}
+                    </strong>
+                    <span>Quizzes Taken</span>
+                </div>
+
+                <div class="stat">
+                    <strong>
+                        {{ activity["activities_completed"] or 0 }}
+                    </strong>
+                    <span>Activities Completed</span>
+                </div>
+
+            </div>
+
+            <p>
+                <strong>Last Seen:</strong>
+                {{ activity["last_seen"] or "Not available" }}
+            </p>
+
+        {% else %}
+
+            <p>
+                No activity has been recorded for this student yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>📚 Enrolled Courses</h2>
+
+        {% if courses %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Course</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                            <th>Enrolled</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for course in courses %}
+
+                            <tr>
+
+                                <td>
+                                    {{ course["title"] }}
+                                </td>
+
+                                <td>
+                                    ${{ "%.2f"|format(
+                                        course["price"] or 0
+                                    ) }}
+                                </td>
+
+                                <td>
+                                    {{ course["status"] }}
+                                </td>
+
+                                <td>
+                                    {{ course["enrolled_at"] }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <p>
+                This student has not enrolled in any courses yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.stat {
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.stat strong {
+    display: block;
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.stat span {
+    display: block;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    min-width: 600px;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background: #f1f1f1;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 7px;
+    text-decoration: none;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
