@@ -3294,10 +3294,8 @@ def admin():
             u.email,
             c.title AS course_title
         FROM payments p
-        JOIN users u
-            ON u.id=p.user_id
-        JOIN courses c
-            ON c.id=p.course_id
+        JOIN users u ON u.id=p.user_id
+        JOIN courses c ON c.id=p.course_id
         ORDER BY p.id DESC
         """
     ).fetchall()
@@ -3326,12 +3324,121 @@ def admin():
         """
     ).fetchone()["c"]
 
-    return render_template(
-        "admin.html",
+    active_count = db.execute(
+        """
+        SELECT COUNT(*) AS c
+        FROM student_activity
+        WHERE last_active >= datetime('now','-7 days')
+        """
+    ).fetchone()["c"]
+
+    inactive_count = max(students_count - active_count, 0)
+
+    pending_payments = db.execute(
+        """
+        SELECT COUNT(*) AS c
+        FROM payments
+        WHERE status='pending'
+        """
+    ).fetchone()["c"]
+
+    return render_template_string(
+        """
+        <!doctype html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Admin Dashboard - Eagle Vision Online Academy</title>
+            <style>
+                *{box-sizing:border-box}
+                body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
+                .top{background:#06264f;color:white;padding:18px 16px}
+                .top h1{margin:0 0 6px;font-size:22px}
+                .top p{margin:0;opacity:.9}
+                .wrap{max-width:1150px;margin:auto;padding:18px}
+                .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+                .stat,.card{background:white;border-radius:15px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+                .stat strong{display:block;font-size:30px;margin-top:6px}
+                .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:18px 0 25px}
+                .action{display:block;background:white;border-radius:15px;padding:18px;text-decoration:none;color:#102a56;border:2px solid #e5ebf4}
+                .action:hover{border-color:#f5c400}
+                .action b{display:block;font-size:18px;margin-bottom:7px}
+                .section{margin-top:25px}
+                table{width:100%;border-collapse:collapse;background:white;border-radius:14px;overflow:hidden}
+                th,td{padding:11px;border-bottom:1px solid #e6e9ef;text-align:left}
+                th{background:#102a56;color:white}
+                .approve{background:#f5c400;border:0;border-radius:8px;padding:8px 12px;font-weight:bold}
+                .back{color:white;text-decoration:none;margin-left:15px}
+                @media(max-width:650px){th,td{font-size:13px;padding:8px}.table-wrap{overflow-x:auto}.back{display:block;margin:12px 0 0}}
+            </style>
+        </head>
+        <body>
+            <div class="top">
+                <h1>🦅 Eagle Vision Online Academy — Admin Dashboard</h1>
+                <p>Manage students, participation, parents, payments, reports and courses.</p>
+                <a class="back" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+
+            <div class="wrap">
+                <h2>Overview</h2>
+                <div class="grid">
+                    <div class="stat">👨‍🎓 Total Students<strong>{{ students_count }}</strong></div>
+                    <div class="stat">🟢 Active in Last 7 Days<strong>{{ active_count }}</strong></div>
+                    <div class="stat">⚠️ Need Follow-up<strong>{{ inactive_count }}</strong></div>
+                    <div class="stat">💳 Pending Payments<strong>{{ pending_payments }}</strong></div>
+                    <div class="stat">📢 Pending Reports<strong>{{ reports_count }}</strong></div>
+                </div>
+
+                <h2 class="section">Student Management</h2>
+                <div class="actions">
+                    <a class="action" href="{{ url_for('admin_students') }}"><b>👥 Track Students</b>View student accounts, activity and learning progress.</a>
+                    <a class="action" href="{{ url_for('admin_participation') }}"><b>📊 Participation Monitor</b>Find students who are inactive or not participating.</a>
+                    <a class="action" href="{{ url_for('admin_parent_contacts') }}"><b>📞 Parent Contacts</b>Call or WhatsApp parents and guardians.</a>
+                    <a class="action" href="{{ url_for('admin_reports') }}"><b>📢 Student Reports</b>Read and respond to reports sent directly to admin.</a>
+                </div>
+
+                <h2 class="section">Academy Management</h2>
+                <div class="actions">
+                    <a class="action" href="{{ url_for('admin_teachers') }}"><b>👨‍🏫 Teachers</b>Manage teachers and course assignments.</a>
+                    {% for c in courses %}
+                    <a class="action" href="{{ url_for('admin_quizzes', course_id=c['id']) }}"><b>📝 {{ c['title'] }}</b>Manage quizzes for this course.</a>
+                    {% endfor %}
+                </div>
+
+                <h2 class="section">💳 Payments</h2>
+                <div class="table-wrap">
+                <table>
+                    <tr><th>Student</th><th>Course</th><th>Amount</th><th>Status</th><th>Action</th></tr>
+                    {% for p in payments %}
+                    <tr>
+                        <td>{{ p['full_name'] }}</td>
+                        <td>{{ p['course_title'] }}</td>
+                        <td>${{ '%.2f'|format(p['amount']|float) }}</td>
+                        <td>{{ p['status'] }}</td>
+                        <td>
+                        {% if p['status'] == 'pending' %}
+                            <form method="post" action="{{ url_for('approve_payment', payment_id=p['id']) }}">
+                                <button class="approve" type="submit">Approve</button>
+                            </form>
+                        {% else %}✓{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No payments yet.</td></tr>
+                    {% endfor %}
+                </table>
+                </div>
+            </div>
+        </body>
+        </html>
+        """,
         payments=payments,
         courses=courses,
         reports_count=reports_count,
-        students_count=students_count
+        students_count=students_count,
+        active_count=active_count,
+        inactive_count=inactive_count,
+        pending_payments=pending_payments
     )
 
 
@@ -5158,278 +5265,4 @@ def reply_report(report_id):
             replied_at=?
         WHERE id=?
         """,
-        (
-            reply,
-            now(),
-            report_id
-        )
-    )
-
-    db.commit()
-
-    create_notification(
-        report["user_id"],
-        "Admin replied to your report",
-        reply,
-        "admin"
-    )
-
-    flash(
-        "Reply sent to the student.",
-        "success"
-    )
-
-    return redirect(
-        url_for("admin_reports")
-    )
-
-
-# ============================================================
-# ADMIN SEND DIRECT NOTIFICATION
-# ============================================================
-
-@app.route(
-    "/admin/student/<int:user_id>/notify",
-    methods=["POST"]
-)
-@admin_required
-def admin_notify_student(user_id):
-
-    title = request.form.get(
-        "title",
-        ""
-    ).strip()
-
-    message = request.form.get(
-        "message",
-        ""
-    ).strip()
-
-    if not title or not message:
-
-        flash(
-            "Title and message are required.",
-            "danger"
-        )
-
-        return redirect(
-            url_for(
-                "admin_student",
-                user_id=user_id
-            )
-        )
-
-    db = get_db()
-
-    student = db.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE id=?
-        AND role='student'
-        """,
-        (user_id,)
-    ).fetchone()
-
-    if not student:
-
-        flash(
-            "Student not found.",
-            "danger"
-        )
-
-        return redirect(
-            url_for("admin_students")
-        )
-
-    create_notification(
-        user_id,
-        title,
-        message,
-        "admin"
-    )
-
-    flash(
-        "Notification sent to student.",
-        "success"
-    )
-
-    return redirect(
-        url_for(
-            "admin_student",
-            user_id=user_id
-        )
-    )
-
-
-# ============================================================
-# ADMIN ADD INTERACTIVE ACTIVITY
-# ============================================================
-
-@app.route(
-    "/admin/activity/<int:lesson_id>/add",
-    methods=["GET", "POST"]
-)
-@admin_required
-def add_activity(lesson_id):
-
-    db = get_db()
-
-    lesson_row = db.execute(
-        """
-        SELECT *
-        FROM lessons
-        WHERE id=?
-        """,
-        (lesson_id,)
-    ).fetchone()
-
-    if not lesson_row:
-        return "Lesson not found", 404
-
-    if request.method == "POST":
-
-        db.execute(
-            """
-            INSERT INTO lesson_activities(
-                lesson_id,
-                question,
-                option_a,
-                option_b,
-                option_c,
-                option_d,
-                answer
-            )
-            VALUES(?,?,?,?,?,?,?)
-            """,
-            (
-                lesson_id,
-                request.form.get("question", ""),
-                request.form.get("option_a", ""),
-                request.form.get("option_b", ""),
-                request.form.get("option_c", ""),
-                request.form.get("option_d", ""),
-                request.form.get("answer", "").upper()
-            )
-        )
-
-        db.commit()
-
-        flash(
-            "Interactive activity added.",
-            "success"
-        )
-
-        return redirect(
-            url_for(
-                "lesson",
-                lesson_id=lesson_id
-            )
-        )
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Add Activity</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                .box{
-                    max-width:700px;
-                    margin:auto;
-                    background:white;
-                    padding:25px;
-                    border-radius:14px;
-                }
-
-                input,select{
-                    width:100%;
-                    box-sizing:border-box;
-                    padding:12px;
-                    margin:7px 0 15px;
-                }
-
-                button{
-                    background:#f5c400;
-                    border:0;
-                    padding:13px 20px;
-                    border-radius:8px;
-                    font-weight:bold;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <div class="box">
-
-            <h1>Add Interactive Activity</h1>
-
-            <p>
-                Lesson:
-                <strong>
-                    {{ lesson["title"] }}
-                </strong>
-            </p>
-
-            <form method="post">
-
-                <label>Question</label>
-                <input name="question" required>
-
-                <label>Option A</label>
-                <input name="option_a" required>
-
-                <label>Option B</label>
-                <input name="option_b" required>
-
-                <label>Option C</label>
-                <input name="option_c" required>
-
-                <label>Option D</label>
-                <input name="option_d" required>
-
-                <label>Correct Answer</label>
-
-                <select name="answer" required>
-                    <option value="">Choose</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
-                </select>
-
-                <button type="submit">
-                    Add Activity
-                </button>
-
-            </form>
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        lesson=lesson_row
-    )
-
-
-# ============================================================
-# TEACHER DASHBOARD
-# ============================================================
-
-@app.route("/teacher")
-@teacher_
 Preview truncated for large file
