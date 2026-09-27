@@ -2042,7 +2042,85 @@ def pay(course_id):
         if amount <= 0:
 
             flash(
-                "Payment amount must be greater than zero.",
+# ============================================================
+# PAYMENT SUBMISSION
+# ============================================================
+
+@app.route(
+    "/pay/<int:course_id>",
+    methods=["GET", "POST"]
+)
+@login_required
+def pay(course_id):
+
+    user = current_user()
+
+    db = get_db()
+
+    course = db.execute(
+        """
+        SELECT *
+        FROM courses
+        WHERE id=?
+        """,
+        (course_id,)
+    ).fetchone()
+
+    if not course:
+
+        flash(
+            "Course not found.",
+            "danger"
+        )
+
+        return redirect(
+            url_for("dashboard")
+        )
+
+    enrollment = db.execute(
+        """
+        SELECT *
+        FROM enrollments
+        WHERE user_id=?
+          AND course_id=?
+        """,
+        (
+            user["id"],
+            course_id
+        )
+    ).fetchone()
+
+    if not enrollment:
+
+        flash(
+            "Please request enrolment before submitting payment.",
+            "warning"
+        )
+
+        return redirect(
+            url_for(
+                "course",
+                course_id=course_id
+            )
+        )
+
+    if request.method == "POST":
+
+        reference = request.form.get(
+            "reference",
+            ""
+        ).strip()
+
+        # Automatically use the price of the selected course
+        try:
+            amount = float(course["price"] or 0)
+        except (TypeError, ValueError):
+            amount = 0
+
+        if amount <= 0:
+
+            flash(
+                "This course does not have a valid price.",
                 "danger"
             )
 
@@ -2077,6 +2155,14 @@ def pay(course_id):
 
         db.commit()
 
+        flash(
+            "Payment submitted successfully. It is waiting for verification.",
+            "success"
+        )
+
+        return redirect(
+            url_for("dashboard")
+    )
         # ----------------------------------------------------
         # ADMIN NOTIFICATION
         # ----------------------------------------------------
