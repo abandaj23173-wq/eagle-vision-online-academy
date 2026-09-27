@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container" style="max-width:800px; margin:auto;">
+
+    <div style="
+        border:8px solid #1f4e79;
+        padding:40px;
+        text-align:center;
+        background:#ffffff;
+        margin-top:20px;
+    ">
+
+        <h1 style="font-size:36px;">
+            EAGLE VISION ONLINE ACADEMY
+        </h1>
+
+        <h2>Certificate of Completion</h2>
+
+        <p style="font-size:18px;">
+            This certificate is proudly presented to
+        </p>
+
+        <h2 style="font-size:30px;">
+            {{ student_name }}
+        </h2>
+
+        <p style="font-size:18px;">
+            for successfully completing the course
+        </p>
+
+        <h2>
+            {{ course.title }}
+        </h2>
+
+        <p>
+            Eagle Vision Online Academy
+        </p>
+
+        <p>
+            Learn. Revise. Achieve.
+        </p>
+
+        <br>
+
+        <p>
+            Date of Completion:
+            <strong>{{ completion_date }}</strong>
+        </p>
+
+        <br><br>
+
+        <div style="
+            display:flex;
+            justify-content:space-around;
+            margin-top:30px;
+        ">
+
+            <div>
+                ______________________
+                <br>
+                Academy Administrator
+            </div>
+
+            <div>
+                ______________________
+                <br>
+                Eagle Vision Online Academy
+            </div>
+
+        </div>
+
+    </div>
+
+    <br>
+
+    <a href="{{ url_for('dashboard') }}">
+        ← Back to Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
