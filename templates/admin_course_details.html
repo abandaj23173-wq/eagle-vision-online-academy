@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>📚 {{ course["title"] }}</h1>
+
+        <p>
+            {{ course["description"] or
+               "No description available." }}
+        </p>
+
+        <p>
+            <strong>Price:</strong>
+            ${{ "%.2f"|format(course["price"] or 0) }}
+        </p>
+
+        <div class="actions">
+            <a
+                href="{{ url_for('admin_courses') }}"
+                class="btn secondary"
+            >
+                ← Courses
+            </a>
+
+            <a
+                href="{{ url_for(
+                    'admin_quizzes',
+                    course_id=course['id']
+                ) }}"
+                class="btn"
+            >
+                Manage Quiz
+            </a>
+        </div>
+    </div>
+
+
+    <div class="card">
+
+        <h2>📖 Lessons</h2>
+
+        {% if lessons %}
+
+            {% for lesson in lessons %}
+
+                <div class="lesson">
+
+                    <h3>
+                        {{ lesson["lesson_order"] }}.
+                        {{ lesson["title"] }}
+                    </h3>
+
+                    <p>
+                        {{ lesson["content"][:300] }}
+                        {% if lesson["content"]|length > 300 %}
+                            ...
+                        {% endif %}
+                    </p>
+
+                    <div class="actions">
+
+                        <a
+                            href="{{ url_for(
+                                'edit_lesson',
+                                lesson_id=lesson['id']
+                            ) }}"
+                            class="btn"
+                        >
+                            Edit Lesson
+                        </a>
+
+                        <form
+                            method="POST"
+                            action="{{ url_for(
+                                'delete_lesson',
+                                lesson_id=lesson['id']
+                            ) }}"
+                            onsubmit="return confirm(
+                                'Delete this lesson?'
+                            );"
+                        >
+                            <button
+                                type="submit"
+                                class="btn danger"
+                            >
+                                Delete
+                            </button>
+                        </form>
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>
+                No lessons have been added to this course yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>👨‍🎓 Enrolled Students</h2>
+
+        {% if students %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Enrolled</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for student in students %}
+
+                            <tr>
+
+                                <td>
+                                    {{ student["full_name"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["email"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["phone"] or "-" }}
+                                </td>
+
+                                <td>
+                                    {{ student["status"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["enrolled_at"] }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <p>
+                No students are enrolled in this course.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.lesson {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 9px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    min-width: 650px;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background: #f1f1f1;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 7px;
+    text-decoration: none;
+    cursor: pointer;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+.btn.danger {
+    background: #c62828;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+form {
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
