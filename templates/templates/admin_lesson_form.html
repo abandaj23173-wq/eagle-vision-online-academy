@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container" style="max-width:800px; margin:auto;">
+
+    <h2>📚 {{ title }}</h2>
+
+    <form method="POST">
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Course</strong></label>
+
+            <select
+                name="course_id"
+                required
+                style="width:100%; padding:10px;"
+            >
+
+                {% for course in courses %}
+
+                    <option
+                        value="{{ course.id }}"
+                        {% if lesson and lesson.course_id == course.id %}selected{% endif %}
+                    >
+                        {{ course.title }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+        </div>
+
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Lesson Title</strong></label>
+
+            <input
+                type="text"
+                name="title"
+                value="{{ lesson.title if lesson else '' }}"
+                placeholder="Enter lesson title"
+                required
+                style="width:100%; padding:10px;"
+            >
+        </div>
+
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Lesson Content</strong></label>
+
+            <textarea
+                name="content"
+                rows="12"
+                placeholder="Enter lesson content..."
+                required
+                style="width:100%; padding:10px;"
+            >{{ lesson.content if lesson else '' }}</textarea>
+        </div>
+
+
+        <button
+            type="submit"
+            style="padding:10px 20px;"
+        >
+            Save Lesson
+        </button>
+
+    </form>
+
+    <br>
+
+    <a href="{{ url_for('admin_courses') }}">
+        ← Back to Courses
+    </a>
+
+</div>
+
+{% endblock %}
