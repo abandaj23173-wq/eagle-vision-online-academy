@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container" style="max-width:1000px; margin:auto;">
+
+    <h2>👨‍👩‍👧 Parent / Guardian Contacts</h2>
+
+    {% if contacts %}
+
+    <div style="overflow-x:auto;">
+
+        <table style="width:100%; border-collapse:collapse;">
+
+            <thead>
+                <tr>
+                    <th style="padding:10px; border:1px solid #ddd;">Student</th>
+                    <th style="padding:10px; border:1px solid #ddd;">Student Phone</th>
+                    <th style="padding:10px; border:1px solid #ddd;">Parent / Guardian</th>
+                    <th style="padding:10px; border:1px solid #ddd;">Parent Phone</th>
+                    <th style="padding:10px; border:1px solid #ddd;">Relationship</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for contact in contacts %}
+
+                <tr>
+
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        {{ contact.full_name }}
+                    </td>
+
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        {{ contact.phone or 'Not provided' }}
+                    </td>
+
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        {{ contact.parent_name or 'Not provided' }}
+                    </td>
+
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        {{ contact.parent_phone or 'Not provided' }}
+                    </td>
+
+                    <td style="padding:10px; border:1px solid #ddd;">
+                        {{ contact.relationship or 'Parent / Guardian' }}
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <div style="
+        padding:20px;
+        border:1px solid #ddd;
+        border-radius:8px;
+    ">
+        <p>No parent or guardian contacts have been submitted yet.</p>
+    </div>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for('admin') }}">
+        ← Back to Admin Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
