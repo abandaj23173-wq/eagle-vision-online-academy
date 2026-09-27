@@ -2001,21 +2001,28 @@ def logout():
 @login_required
 def dashboard():
 
+    # Keep the student dashboard self-contained so students can always
+    # browse subjects, enrol, pay, and open approved courses even if the
+    # existing dashboard.html template does not contain course cards.
     db = get_db()
 
     enrollments = db.execute(
         """
-        SELECT
-            e.*,
-            c.title,
-            c.description
+        SELECT e.*, c.title, c.description
         FROM enrollments e
-        JOIN courses c
-            ON c.id=e.course_id
+        JOIN courses c ON c.id=e.course_id
         WHERE e.user_id=?
         ORDER BY e.id DESC
         """,
         (g.user["id"],)
+    ).fetchall()
+
+    courses = db.execute(
+        """
+        SELECT *
+        FROM courses
+        ORDER BY id
+        """
     ).fetchall()
 
     activity = db.execute(
@@ -2040,12 +2047,152 @@ def dashboard():
 
     unread_notifications = get_unread_notification_count()
 
-    return render_template(
-        "dashboard.html",
+    # Build a simple status map for every course.
+    status_map = {}
+    for course_row in courses:
+        enrollment = db.execute(
+            """
+            SELECT status
+            FROM enrollments
+            WHERE user_id=? AND course_id=?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (g.user["id"], course_row["id"])
+        ).fetchone()
+        status_map[course_row["id"]] = enrollment["status"] if enrollment else None
+
+    return render_template_string(
+        """
+        <!doctype html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Student Dashboard - Eagle Vision Online Academy</title>
+            <style>
+                *{box-sizing:border-box}
+                body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
+                .top{background:#102a56;color:white;padding:18px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+                .top h1{margin:0;font-size:21px}
+                .top a{color:white;text-decoration:none;margin-left:12px;font-weight:bold}
+                .wrap{max-width:1050px;margin:auto;padding:20px}
+                .welcome{background:white;border-radius:16px;padding:22px;margin-bottom:20px;box-shadow:0 3px 15px rgba(0,0,0,.07)}
+                .welcome h2{margin:0 0 8px;color:#102a56}
+                .notice{background:#fff8d9;border-left:5px solid #f5c400;padding:14px;border-radius:10px;margin:15px 0}
+                .section-title{color:#102a56;margin:25px 0 12px}
+                .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+                .card{background:white;border-radius:16px;padding:20px;box-shadow:0 3px 15px rgba(0,0,0,.07)}
+                .card h3{margin-top:0;color:#102a56}
+                .price{font-size:20px;font-weight:bold;margin:10px 0;color:#111}
+                .desc{color:#5c667a;line-height:1.5;min-height:48px}
+                .btn{display:inline-block;border:0;border-radius:9px;padding:12px 15px;text-decoration:none;font-weight:bold;cursor:pointer;margin-top:8px}
+                .primary{background:#f5c400;color:#111}
+                .blue{background:#102a56;color:white}
+                .green{background:#198754;color:white}
+                .gray{background:#e8edf5;color:#333}
+                form{display:inline}
+                .small{font-size:13px;color:#667085}
+                .badge{display:inline-block;padding:6px 9px;border-radius:20px;font-size:12px;font-weight:bold;background:#eef2f7;margin-bottom:8px}
+                .approved{background:#dff6e8;color:#146c3e}
+                .pending{background:#fff2c2;color:#775d00}
+                .empty{background:white;padding:18px;border-radius:12px}
+                .notification{padding:12px;border-bottom:1px solid #eee}
+                @media(max-width:600px){.wrap{padding:13px}.top a{margin-left:5px;font-size:13px}}
+            </style>
+        </head>
+        <body>
+            <div class="top">
+                <h1>Eagle Vision Online Academy</h1>
+                <div>
+                    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                    <a href="{{ url_for('notifications') }}">Notifications{% if unread_notifications %} ({{ unread_notifications }}){% endif %}</a>
+                    <a href="{{ url_for('report_admin') }}">Report to Admin</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                </div>
+            </div>
+
+            <div class="wrap">
+                <div class="welcome">
+                    <h2>Welcome, {{ g.user['full_name'] }} 👋</h2>
+                    <p>Learn. Revise. Achieve.</p>
+                    <div class="notice">
+                        <strong>How learning works:</strong>
+                        Choose a subject below → enrol → submit payment → wait for admin approval → open your course → study lessons → complete activities and quizzes.
+                    </div>
+                    {% if not g.user['parent_phone'] %}
+                        <a class="btn primary" href="{{ url_for('parent_contact') }}">Add Parent / Guardian Contact</a>
+                    {% endif %}
+                </div>
+
+                <h2 class="section-title">📚 Browse Courses & Subjects</h2>
+                <div class="grid">
+                {% for c in courses %}
+                    {% set status = status_map[c['id']] %}
+                    <div class="card">
+                        <span class="badge">Course</span>
+                        <h3>{{ c['title'] }}</h3>
+                        <div class="price">${{ '%.2f'|format(c['price']|float) }}</div>
+                        <p class="desc">{{ c['description'] or 'Study lessons, practise and prepare for examinations.' }}</p>
+
+                        {% if status == 'approved' %}
+                            <span class="badge approved">✓ Enrolled & Active</span><br>
+                            <a class="btn green" href="{{ url_for('course', course_id=c['id']) }}">Start Learning</a>
+                        {% elif status == 'pending' %}
+                            <span class="badge pending">⏳ Enrolment Pending</span><br>
+                            <a class="btn primary" href="{{ url_for('pay', course_id=c['id']) }}">Pay / Submit Payment</a>
+                        {% else %}
+                            <form method="post" action="{{ url_for('enrol', course_id=c['id']) }}">
+                                <button class="btn blue" type="submit">Enrol Now</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                </div>
+
+                <h2 class="section-title">🎓 My Courses</h2>
+                {% if enrollments %}
+                    <div class="grid">
+                    {% for e in enrollments %}
+                        <div class="card">
+                            <h3>{{ e['title'] }}</h3>
+                            <p>{{ e['description'] or '' }}</p>
+                            {% if e['status'] == 'approved' %}
+                                <span class="badge approved">Active</span><br>
+                                <a class="btn green" href="{{ url_for('course', course_id=e['course_id']) }}">Open Course</a>
+                            {% else %}
+                                <span class="badge pending">{{ e['status']|capitalize }}</span><br>
+                                <a class="btn primary" href="{{ url_for('pay', course_id=e['course_id']) }}">Pay / Submit Payment</a>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty">You have not enrolled in a course yet. Choose a subject above to get started.</div>
+                {% endif %}
+
+                <h2 class="section-title">🔔 Recent Notifications</h2>
+                <div class="card">
+                    {% if notifications %}
+                        {% for n in notifications %}
+                            <div class="notification">
+                                <strong>{{ n['title'] }}</strong><br>
+                                <span class="small">{{ n['message'] }}</span>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="small">No notifications yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </body>
+        </html>
+        """,
+        courses=courses,
         enrollments=enrollments,
         activity=activity,
         notifications=notifications,
-        unread_notifications=unread_notifications
+        unread_notifications=unread_notifications,
+        status_map=status_map
     )
 
 
@@ -5284,460 +5431,5 @@ def add_activity(lesson_id):
 # ============================================================
 
 @app.route("/teacher")
-@teacher_required
-def teacher():
-
-    db = get_db()
-
-    if g.user["role"] == "admin":
-        courses = db.execute(
-            """
-            SELECT *
-            FROM courses
-            ORDER BY title
-            """
-        ).fetchall()
-
-    else:
-
-        courses = db.execute(
-            """
-            SELECT c.*
-            FROM courses c
-            JOIN teacher_courses tc
-                ON tc.course_id=c.id
-            WHERE tc.teacher_id=?
-            ORDER BY c.title
-            """,
-            (g.user["id"],)
-        ).fetchall()
-
-    return render_template(
-        "teacher_dashboard.html",
-        courses=courses
-    )
-
-
-@app.route(
-    "/teacher/course/<int:course_id>"
-)
-@teacher_required
-def teacher_course(course_id):
-
-    db = get_db()
-
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
-
-    if g.user["role"] != "admin":
-
-        assigned = db.execute(
-            """
-            SELECT *
-            FROM teacher_courses
-            WHERE teacher_id=?
-            AND course_id=?
-            """,
-            (
-                g.user["id"],
-                course_id
-            )
-        ).fetchone()
-
-        if not assigned:
-            return "Access denied", 403
-
-    students = db.execute(
-        """
-        SELECT
-            u.*,
-            e.status AS enrollment_status,
-            sa.last_active,
-            sa.lessons_completed,
-            sa.quizzes_attempted,
-            sa.activities_attempted
-        FROM users u
-        JOIN enrollments e
-            ON e.user_id=u.id
-        LEFT JOIN student_activity sa
-            ON sa.user_id=u.id
-        WHERE e.course_id=?
-        AND u.role='student'
-        ORDER BY u.full_name
-        """,
-        (course_id,)
-    ).fetchall()
-
-    return render_template(
-        "teacher_course.html",
-        course=course_row,
-        students=students
-    )
-
-
-@app.route(
-    "/teacher/course/<int:course_id>/participation"
-)
-@teacher_required
-def teacher_participation(course_id):
-
-    db = get_db()
-
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
-
-    students = db.execute(
-        """
-        SELECT
-            u.full_name,
-            u.email,
-            u.parent_phone,
-            sa.last_active,
-            sa.lessons_completed,
-            sa.quizzes_attempted,
-            sa.activities_attempted
-        FROM users u
-        JOIN enrollments e
-            ON e.user_id=u.id
-        LEFT JOIN student_activity sa
-            ON sa.user_id=u.id
-        WHERE e.course_id=?
-        AND u.role='student'
-        """,
-        (course_id,)
-    ).fetchall()
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Course Participation</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                table{
-                    width:100%;
-                    border-collapse:collapse;
-                    background:white;
-                }
-
-                th,td{
-                    padding:11px;
-                    border-bottom:1px solid #ddd;
-                    text-align:left;
-                }
-
-                th{
-                    background:#102a56;
-                    color:white;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <h1>
-            {{ course["title"] }} — Participation
-        </h1>
-
-        <table>
-
-            <tr>
-                <th>Student</th>
-                <th>Last Active</th>
-                <th>Lessons</th>
-                <th>Quizzes</th>
-                <th>Activities</th>
-                <th>Parent</th>
-            </tr>
-
-            {% for student in students %}
-
-            <tr>
-
-                <td>
-                    {{ student["full_name"] }}
-                </td>
-
-                <td>
-                    {{ student["last_active"] or "Never" }}
-                </td>
-
-                <td>
-                    {{ student["lessons_completed"] or 0 }}
-                </td>
-
-                <td>
-                    {{ student["quizzes_attempted"] or 0 }}
-                </td>
-
-                <td>
-                    {{ student["activities_attempted"] or 0 }}
-                </td>
-
-                <td>
-                    {{ student["parent_phone"] or "Not provided" }}
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-        </table>
-
-        </body>
-        </html>
-        """,
-        course=course_row,
-        students=students
-    )
-
-
-# ============================================================
-# ADMIN TEACHERS
-# ============================================================
-
-@app.route("/admin/teachers")
-@admin_required
-def admin_teachers():
-
-    db = get_db()
-
-    teachers = db.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE role='teacher'
-        ORDER BY full_name
-        """
-    ).fetchall()
-
-    courses = db.execute(
-        """
-        SELECT *
-        FROM courses
-        ORDER BY title
-        """
-    ).fetchall()
-
-    return render_template(
-        "admin_teachers.html",
-        teachers=teachers,
-        courses=courses
-    )
-
-
-@app.route(
-    "/admin/teacher/add",
-    methods=["GET", "POST"]
-)
-@admin_required
-def add_teacher():
-
-    if request.method == "POST":
-
-        full_name = request.form.get(
-            "full_name",
-            ""
-        ).strip()
-
-        email = request.form.get(
-            "email",
-            ""
-        ).strip().lower()
-
-        phone = request.form.get(
-            "phone",
-            ""
-        ).strip()
-
-        password = request.form.get(
-            "password",
-            ""
-        )
-
-        if not full_name or not email or not password:
-
-            flash(
-                "Complete all required fields.",
-                "danger"
-            )
-
-            return redirect(
-                url_for("admin_teachers")
-            )
-
-        db = get_db()
-
-        existing = db.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE email=?
-            """,
-            (email,)
-        ).fetchone()
-
-        if existing:
-
-            flash(
-                "That email is already registered.",
-                "danger"
-            )
-
-            return redirect(
-                url_for("admin_teachers")
-            )
-
-        db.execute(
-            """
-            INSERT INTO users(
-                full_name,
-                email,
-                phone,
-                password_hash,
-                role,
-                created_at
-            )
-            VALUES(?,?,?,?,?,?)
-            """,
-            (
-                full_name,
-                email,
-                phone,
-                generate_password_hash(password),
-                "teacher",
-                now()
-            )
-        )
-
-        db.commit()
-
-        flash(
-            "Teacher added successfully.",
-            "success"
-        )
-
-        return redirect(
-            url_for("admin_teachers")
-        )
-
-    return redirect(
-        url_for("admin_teachers")
-    )
-
-
-@app.route(
-    "/admin/teacher/<int:teacher_id>/assign",
-    methods=["POST"]
-)
-@admin_required
-def assign_teacher(teacher_id):
-
-    course_id = request.form.get(
-        "course_id"
-    )
-
-    db = get_db()
-
-    db.execute(
-        """
-        INSERT OR IGNORE INTO teacher_courses(
-            teacher_id,
-            course_id
-        )
-        VALUES(?,?)
-        """,
-        (
-            teacher_id,
-            course_id
-        )
-    )
-
-    db.commit()
-
-    flash(
-        "Course assigned to teacher.",
-        "success"
-    )
-
-    return redirect(
-        url_for("admin_teachers")
-    )
-
-
-@app.route(
-    "/admin/teacher/<int:teacher_id>/remove/<int:course_id>",
-    methods=["POST"]
-)
-@admin_required
-def remove_teacher_course(
-    teacher_id,
-    course_id
-):
-
-    db = get_db()
-
-    db.execute(
-        """
-        DELETE FROM teacher_courses
-        WHERE teacher_id=?
-        AND course_id=?
-        """,
-        (
-            teacher_id,
-            course_id
-        )
-    )
-
-    db.commit()
-
-    flash(
-        "Course removed from teacher.",
-        "success"
-    )
-
-    return redirect(
-        url_for("admin_teachers")
-    )
-
-
-# ============================================================
-# RUN
-# ============================================================
-
-if __name__ == "__main__":
-
-    app.run(
-        host="0.0.0.0",
-        port=int(
-            os.environ.get(
-                "PORT",
-                5000
-            )
-        ),
-        debug=False
-    )
+@teacher_
+Preview truncated for large file
