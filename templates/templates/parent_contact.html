@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container" style="max-width:700px; margin:auto;">
+
+    <h2>Parent / Guardian Contact</h2>
+
+    <p>
+        Please provide your parent or guardian's contact details.
+        This helps Eagle Vision Online Academy keep parents informed
+        about your learning progress.
+    </p>
+
+    <form method="POST">
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Parent / Guardian Name</strong></label>
+            <input
+                type="text"
+                name="parent_name"
+                placeholder="Enter parent or guardian name"
+                required
+                style="width:100%; padding:10px;"
+            >
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Parent / Guardian Phone</strong></label>
+            <input
+                type="text"
+                name="parent_phone"
+                placeholder="+263..."
+                required
+                style="width:100%; padding:10px;"
+            >
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Relationship</strong></label>
+            <select
+                name="relationship"
+                style="width:100%; padding:10px;"
+            >
+                <option value="Parent">Parent</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+
+        <button
+            type="submit"
+            style="padding:10px 20px;"
+        >
+            Save Parent Contact
+        </button>
+
+    </form>
+
+    <br>
+
+    <a href="{{ url_for('dashboard') }}">
+        ← Back to Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
