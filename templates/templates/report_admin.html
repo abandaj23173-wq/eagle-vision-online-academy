@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container" style="max-width:800px; margin:auto;">
+
+    <h2>📝 Submit a Report</h2>
+
+    <p>
+        Use this page to send a report, question, concern, or request
+        to Eagle Vision Online Academy administration.
+    </p>
+
+    <form method="POST">
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Subject</strong></label>
+
+            <input
+                type="text"
+                name="subject"
+                placeholder="Enter the subject"
+                required
+                style="width:100%; padding:10px;"
+            >
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label><strong>Message</strong></label>
+
+            <textarea
+                name="message"
+                rows="7"
+                placeholder="Write your report or message here..."
+                required
+                style="width:100%; padding:10px;"
+            ></textarea>
+        </div>
+
+        <button
+            type="submit"
+            style="padding:10px 20px;"
+        >
+            Submit Report
+        </button>
+
+    </form>
+
+    <br>
+
+    <a href="{{ url_for('dashboard') }}">
+        ← Back to Dashboard
+    </a>
+
+</div>
+
+{% endblock %}
