@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>👨‍🏫 {{ course["title"] }}</h1>
+
+        {% if course["description"] %}
+            <p>{{ course["description"] }}</p>
+        {% endif %}
+
+        <div class="actions">
+            <a
+                href="{{ url_for(
+                    'teacher_dashboard'
+                ) }}"
+                class="btn secondary"
+            >
+                ← Teacher Dashboard
+            </a>
+
+            <a
+                href="{{ url_for(
+                    'teacher_course_participation',
+                    course_id=course['id']
+                ) }}"
+                class="btn"
+            >
+                📊 Participation
+            </a>
+        </div>
+    </div>
+
+
+    <div class="card">
+
+        <h2>📚 Lessons</h2>
+
+        {% if lessons %}
+
+            {% for lesson in lessons %}
+
+                <div class="lesson">
+
+                    <h3>
+                        {{ lesson["lesson_order"] }}.
+                        {{ lesson["title"] }}
+                    </h3>
+
+                    {% if lesson["content"] %}
+                        <p>
+                            {{ lesson["content"][:250] }}
+                            {% if lesson["content"]|length > 250 %}
+                                ...
+                            {% endif %}
+                        </p>
+                    {% endif %}
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>
+                No lessons have been added to this course yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>👨‍🎓 Enrolled Students</h2>
+
+        {% if students %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Enrolled</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for student in students %}
+
+                            <tr>
+
+                                <td>
+                                    {{ student["full_name"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["email"] }}
+                                </td>
+
+                                <td>
+                                    {{ student["enrollment_status"] }}
+                                </td>
+
+                                <td>
+
+                                    {{ student["completed_lessons"] or 0 }}
+                                    /
+                                    {{ student["total_lessons"] or 0 }}
+
+                                    lessons
+
+                                </td>
+
+                                <td>
+                                    {{ student["enrolled_at"] }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <p>
+                No students are currently enrolled in this course.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>➕ Add Lesson Activity</h2>
+
+        <p>
+            Add an activity to a lesson for students to complete.
+        </p>
+
+        {% if lessons %}
+
+            {% for lesson in lessons %}
+
+                <div class="activity-form">
+
+                    <h3>
+                        {{ lesson["lesson_order"] }}.
+                        {{ lesson["title"] }}
+                    </h3>
+
+                    <form
+                        method="POST"
+                        action="{{ url_for(
+                            'admin_add_lesson_activity',
+                            lesson_id=lesson['id']
+                        ) }}"
+                    >
+
+                        <input
+                            type="text"
+                            name="title"
+                            placeholder="Activity title"
+                            required
+                        >
+
+                        <select
+                           
