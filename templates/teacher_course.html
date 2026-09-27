@@ -181,4 +181,174 @@
                         >
 
                         <select
-                           
+                            name="activity_type"
+                        >
+                            <option value="question">
+                                Question
+                            </option>
+
+                            <option value="assignment">
+                                Assignment
+                            </option>
+
+                            <option value="discussion">
+                                Discussion
+                            </option>
+
+                            <option value="practice">
+                                Practice
+                            </option>
+                        </select>
+
+                        <textarea
+                            name="instructions"
+                            placeholder="Instructions for students"
+                            rows="3"
+                        ></textarea>
+
+                        <textarea
+                            name="content"
+                            placeholder="Activity content or question"
+                            rows="4"
+                        ></textarea>
+
+                        <button
+                            type="submit"
+                            class="btn"
+                        >
+                            Add Activity
+                        </button>
+
+                    </form>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p>
+                Add lessons first before creating activities.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.lesson {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+}
+
+.activity-form {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 7px 0;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 650px;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background: #f1f1f1;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 7px;
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
