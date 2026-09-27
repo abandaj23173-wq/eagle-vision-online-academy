@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>📚 Course Management</h1>
+
+        <p>
+            Manage Eagle Vision Online Academy courses,
+            lessons and enrolled students.
+        </p>
+
+        <div class="actions">
+            <a href="{{ url_for('admin') }}" class="btn secondary">
+                ← Admin Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+
+        {% if courses %}
+
+            <div class="course-grid">
+
+                {% for course in courses %}
+
+                    <div class="course-card">
+
+                        <h2>{{ course["title"] }}</h2>
+
+                        <p>
+                            {{ course["description"] or
+                               "No description available." }}
+                        </p>
+
+                        <p>
+                            <strong>Price:</strong>
+                            ${{ "%.2f"|format(course["price"] or 0) }}
+                        </p>
+
+                        <p>
+                            <strong>Lessons:</strong>
+                            {{ course["lesson_count"] or 0 }}
+                        </p>
+
+                        <p>
+                            <strong>Active Students:</strong>
+                            {{ course["student_count"] or 0 }}
+                        </p>
+
+                        <p>
+                            <strong>Status:</strong>
+                            {% if course["active"] %}
+                                Active
+                            {% else %}
+                                Inactive
+                            {% endif %}
+                        </p>
+
+                        <div class="actions">
+
+                            <a
+                                href="{{ url_for(
+                                    'admin_course_details',
+                                    course_id=course['id']
+                                ) }}"
+                                class="btn"
+                            >
+                                Manage Course
+                            </a>
+
+                            <a
+                                href="{{ url_for(
+                                    'admin_quizzes',
+                                    course_id=course['id']
+                                ) }}"
+                                class="btn secondary"
+                            >
+                                Manage Quiz
+                            </a>
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+        {% else %}
+
+            <div class="empty">
+                <h2>No Courses</h2>
+                <p>No courses are currently available.</p>
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.course-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.course-card {
+    border: 1px solid #ddd;
+    padding: 18px;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border-radius: 7px;
+    text-decoration: none;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+.empty {
+    text-align: center;
+    padding: 30px;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
