@@ -2067,51 +2067,7 @@ def pay(course_id):
         course=course
     )
 
-        # ----------------------------------------------------
-        # ADMIN NOTIFICATION
-        # ----------------------------------------------------
-
-        admins = db.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE role='admin'
-            """
-        ).fetchall()
-
-        for admin_user in admins:
-
-            add_notification(
-                admin_user["id"],
-                "New Payment Submitted",
-                (
-                    user["full_name"]
-                    + " submitted a payment for "
-                    + course["title"]
-                    + "."
-                ),
-                "payment"
-            )
-
-        flash(
-            "Payment submitted successfully. "
-            "Please wait for administrator approval.",
-            "success"
-        )
-
-        return redirect(
-            url_for(
-                "course",
-                course_id=course_id
-            )
-        )
-
-    return render_template(
-        "payment.html",
-        course=course,
-        enrollment=enrollment
-    )
-
+        
 
 # ============================================================
 # CERTIFICATE
