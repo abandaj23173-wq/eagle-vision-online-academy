@@ -5512,6 +5512,7 @@ def admin_course_details(course_id):
     )
 
 
+
 # ------------------------------------------------------------
 # LOGOUT SAFETY ROUTE
 # ------------------------------------------------------------
@@ -5519,6 +5520,32 @@ def admin_course_details(course_id):
 @app.route("/home")
 def home():
     return redirect(url_for("index"))
+
+
+# ============================================================
+# SAFETY USER LOADER
+# ============================================================
+
+@app.before_request
+def ensure_user_loaded():
+
+    if not hasattr(g, "user"):
+        g.user = None
+
+    user_id = session.get("user_id")
+
+    if user_id and g.user is None:
+
+        db = get_db()
+
+        g.user = db.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE id=?
+            """,
+            (user_id,)
+        ).fetchone()
 
 
 # ============================================================
@@ -5534,4 +5561,4 @@ if __name__ == "__main__":
             os.environ.get("PORT", 5000)
         ),
         debug=False
-)
+    )
