@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+
+    <div class="card">
+        <h1>📋 Student Reports</h1>
+
+        <p>
+            Review reports submitted by students and
+            send responses directly from the admin dashboard.
+        </p>
+
+        <div class="actions">
+            <a
+                href="{{ url_for('admin') }}"
+                class="btn secondary"
+            >
+                ← Admin Dashboard
+            </a>
+
+            <a
+                href="{{ url_for('admin_students') }}"
+                class="btn secondary"
+            >
+                Students
+            </a>
+        </div>
+    </div>
+
+
+    {% if reports %}
+
+        {% for report in reports %}
+
+            <div class="card">
+
+                <h2>
+                    {{ report["student_name"] }}
+                </h2>
+
+                <p>
+                    <strong>Email:</strong>
+                    {{ report["student_email"] }}
+                </p>
+
+                <p>
+                    <strong>Status:</strong>
+                    {{ report["status"] }}
+                </p>
+
+                <p>
+                    <strong>Submitted:</strong>
+                    {{ report["created_at"] }}
+                </p>
+
+                <hr>
+
+                <h3>Student Report</h3>
+
+                <div class="report-box">
+                    {{ report["message"] }}
+                </div>
+
+                {% if report["admin_reply"] %}
+
+                    <h3>Previous Response</h3>
+
+                    <div class="reply-box">
+                        {{ report["admin_reply"] }}
+                    </div>
+
+                    {% if report["replied_at"] %}
+                        <p>
+                            <strong>Replied:</strong>
+                            {{ report["replied_at"] }}
+                        </p>
+                    {% endif %}
+
+                {% endif %}
+
+
+                <h3>Reply to Student</h3>
+
+                <form
+                    method="POST"
+                    action="{{ url_for(
+                        'admin_reply_report',
+                        report_id=report['id']
+                    ) }}"
+                >
+
+                    <textarea
+                        name="reply"
+                        rows="5"
+                        placeholder="Write your response to the student..."
+                        required
+                    ></textarea>
+
+                    <button
+                        type="submit"
+                        class="btn"
+                    >
+                        Send Response
+                    </button>
+
+                </form>
+
+            </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card empty">
+
+            <h2>No Reports</h2>
+
+            <p>
+                There are currently no student reports.
+            </p>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+
+<style>
+
+.container {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.report-box,
+.reply-box {
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0 20px;
+    white-space: pre-wrap;
+}
+
+.report-box {
+    background: #f5f5f5;
+}
+
+.reply-box {
+    background: #eef7ee;
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 7px;
+    resize: vertical;
+    margin-bottom: 10px;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 7px;
+    text-decoration: none;
+    cursor: pointer;
+    background: #1f6feb;
+    color: white;
+}
+
+.btn.secondary {
+    background: #555;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.empty {
+    text-align: center;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #ddd;
+    margin: 20px 0;
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+}
+
+</style>
+
+{% endblock %}
