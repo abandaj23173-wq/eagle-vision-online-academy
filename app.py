@@ -1,5268 +1,4066 @@
 import os
 import sqlite3
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask import (
-    Flask,
-    render_template,
-    render_template_string,
-    request,
-    redirect,
-    url_for,
-    session,
-    g,
-    flash,
-    Response,
+Flask,
+render_template,
+request,
+redirect,
+url_for,
+session,
+flash,
+g,
+send_file,
 )
-from werkzeug.security import generate_password_hash, check_password_hash
+
+from werkzeug.security import (
+generate_password_hash,
+check_password_hash,
+)
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
+=========================================================
 
-# ============================================================
-# APP CONFIGURATION
-# ============================================================
+APP SETUP
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(BASE, "academy.db")
-CERT_DIR = os.path.join(BASE, "certificates")
+=========================================================
 
-os.makedirs(CERT_DIR, exist_ok=True)
+BASE = os.path.dirname(os.path.abspath(file))
 
-app = Flask(__name__)
-
-# IMPORTANT:
-# Set SECRET_KEY in Render environment variables for production.
-app.secret_key = os.environ.get(
-    "SECRET_KEY",
-    "change-this-secret-key-in-render"
+DB = os.path.join(
+BASE,
+"academy.db",
 )
 
+CERT_DIR = os.path.join(
+BASE,
+"certificates",
+)
 
-# ============================================================
-# DATABASE
-# ============================================================
+os.makedirs(
+CERT_DIR,
+exist_ok=True,
+)
 
-def get_db():
-    if "db" not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-    return g.db
+app = Flask(name)
 
+app.secret_key = os.environ.get(
+"SECRET_KEY",
+"CHANGE_THIS_SECRET_KEY_IN_PRODUCTION",
+)
+
+=========================================================
+
+DATABASE CONNECTION
+
+=========================================================
+
+def db():
+
+if "db" not in g:
+
+g.db = sqlite3.connect(DB)    
+
+g.db.row_factory = sqlite3.Row
+
+return g.db
 
 @app.teardown_appcontext
 def close_db(exception=None):
-    db = g.pop("db", None)
 
-    if db is not None:
-        db.close()
+conn = g.pop("db", None)
 
+if conn:
+conn.close()
 
-def ensure_column(conn, table, column, definition):
-    """
-    Safely add a column if an older database does not have it.
-    This is important because your Render database may already exist.
-    """
-    columns = {
-        row["name"]
-        for row in conn.execute(
-            f"PRAGMA table_info({table})"
-        ).fetchall()
-    }
+=========================================================
 
-    if column not in columns:
-        conn.execute(
-            f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
-        )
+DATABASE INITIALIZATION
 
-
-# ============================================================
-# DATABASE INITIALISATION
-# ============================================================
+=========================================================
 
 def init_db():
 
-    conn = get_db()
-
-    # --------------------------------------------------------
-    # USERS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            phone TEXT,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'student',
-            created_at TEXT NOT NULL
-        )
-        """
-    )
-
-    # Parent/guardian phone for existing installations
-    ensure_column(
-        conn,
-        "users",
-        "parent_phone",
-        "TEXT"
-    )
-
-    # --------------------------------------------------------
-    # COURSES
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS courses(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT,
-            active INTEGER NOT NULL DEFAULT 1
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # LESSONS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS lessons(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            course_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            position INTEGER NOT NULL DEFAULT 1,
-            FOREIGN KEY(course_id) REFERENCES courses(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # ENROLLMENTS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS enrollments(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            course_id INTEGER NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            created_at TEXT NOT NULL,
-            UNIQUE(user_id, course_id),
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(course_id) REFERENCES courses(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # LESSON PROGRESS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS lesson_progress(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            lesson_id INTEGER NOT NULL,
-            completed INTEGER NOT NULL DEFAULT 0,
-            completed_at TEXT,
-            UNIQUE(user_id, lesson_id),
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(lesson_id) REFERENCES lessons(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # QUIZZES
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS quizzes(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            course_id INTEGER NOT NULL,
-            question TEXT NOT NULL,
-            option_a TEXT NOT NULL,
-            option_b TEXT NOT NULL,
-            option_c TEXT NOT NULL,
-            option_d TEXT NOT NULL,
-            answer TEXT NOT NULL,
-            FOREIGN KEY(course_id) REFERENCES courses(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # QUIZ ATTEMPTS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS quiz_attempts(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            quiz_id INTEGER NOT NULL,
-            answer TEXT NOT NULL,
-            correct INTEGER NOT NULL DEFAULT 0,
-            attempted_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(quiz_id) REFERENCES quizzes(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # PAYMENTS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS payments(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            course_id INTEGER NOT NULL,
-            amount REAL NOT NULL,
-            reference TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(course_id) REFERENCES courses(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # TEACHER COURSES
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS teacher_courses(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            teacher_id INTEGER NOT NULL,
-            course_id INTEGER NOT NULL,
-            UNIQUE(teacher_id, course_id),
-            FOREIGN KEY(teacher_id) REFERENCES users(id),
-            FOREIGN KEY(course_id) REFERENCES courses(id)
-        )
-        """
-    )
-
-    # ========================================================
-    # NEW STUDENT PARTICIPATION SYSTEM
-    # ========================================================
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS student_activity(
-            user_id INTEGER PRIMARY KEY,
-            last_active TEXT NOT NULL,
-            lessons_viewed INTEGER NOT NULL DEFAULT 0,
-            lessons_completed INTEGER NOT NULL DEFAULT 0,
-            quizzes_attempted INTEGER NOT NULL DEFAULT 0,
-            activities_attempted INTEGER NOT NULL DEFAULT 0,
-            last_course_id INTEGER,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-        """
-    )
-
-    ensure_column(
-        conn,
-        "student_activity",
-        "activities_attempted",
-        "INTEGER NOT NULL DEFAULT 0"
-    )
-
-    # --------------------------------------------------------
-    # NOTIFICATIONS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS notifications(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            message TEXT NOT NULL,
-            notification_type TEXT NOT NULL DEFAULT 'info',
-            is_read INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # STUDENT REPORTS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS student_reports(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            subject TEXT NOT NULL,
-            message TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            admin_reply TEXT,
-            created_at TEXT NOT NULL,
-            replied_at TEXT,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # INTERACTIVE LESSON ACTIVITIES
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS lesson_activities(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            lesson_id INTEGER NOT NULL,
-            question TEXT NOT NULL,
-            option_a TEXT NOT NULL,
-            option_b TEXT NOT NULL,
-            option_c TEXT NOT NULL,
-            option_d TEXT NOT NULL,
-            answer TEXT NOT NULL,
-            FOREIGN KEY(lesson_id) REFERENCES lessons(id)
-        )
-        """
-    )
-
-    # --------------------------------------------------------
-    # ACTIVITY ATTEMPTS
-    # --------------------------------------------------------
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS activity_attempts(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            activity_id INTEGER NOT NULL,
-            answer TEXT NOT NULL,
-            correct INTEGER NOT NULL DEFAULT 0,
-            attempted_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(activity_id) REFERENCES lesson_activities(id)
-        )
-        """
-    )
-
-    # ========================================================
-    # COURSES
-    # ========================================================
-
-    courses = [
-        (
-            "Form 1 Mathematics",
-            "Foundation mathematics for Form 1 students."
-        ),
-        (
-            "Form 2 Mathematics",
-            "Mathematics lessons for Form 2 students."
-        ),
-        (
-            "Form 3 Mathematics",
-            "Mathematics lessons for Form 3 students."
-        ),
-        (
-            "O-Level Mathematics",
-            "O-Level Mathematics revision and examination preparation."
-        ),
-        (
-            "O-Level Science",
-            "Science lessons and examination preparation."
-        ),
-        (
-            "O-Level Geography",
-            "Geography lessons, revision and examination preparation."
-        ),
-        (
-            "A-Level History",
-            "A-Level History lessons and examination preparation."
-        ),
-    ]
-
-    for title, description in courses:
-        existing = conn.execute(
-            "SELECT id FROM courses WHERE title=?",
-            (title,)
-        ).fetchone()
-
-        if not existing:
-            conn.execute(
-                """
-                INSERT INTO courses(title, description, active)
-                VALUES(?,?,1)
-                """,
-                (title, description)
-            )
-
-    # ========================================================
-    # LESSON DATA
-    # ========================================================
-
-    lesson_data = {
-
-        "Form 1 Mathematics": [
-            (
-                "Number Skills",
-                """
-                In this lesson students learn about whole numbers,
-                place value, factors, multiples and basic operations.
-
-                Remember to work carefully and show your working.
-                """
-            ),
-            (
-                "Fractions",
-                """
-                Fractions represent parts of a whole.
-
-                Students should be able to identify proper fractions,
-                improper fractions and mixed numbers and perform basic
-                operations involving fractions.
-                """
-            ),
-            (
-                "Basic Algebra",
-                """
-                Algebra uses letters to represent unknown numbers.
-
-                Learn how to simplify simple expressions and solve
-                basic equations.
-                """
-            ),
-        ],
-
-        "Form 2 Mathematics": [
-            (
-                "Directed Numbers",
-                """
-                Directed numbers include positive and negative numbers.
-
-                Learn how to add, subtract, multiply and divide
-                directed numbers.
-                """
-            ),
-            (
-                "Algebraic Expressions",
-                """
-                Learn how to collect like terms, expand brackets and
-                simplify algebraic expressions.
-                """
-            ),
-            (
-                "Ratio and Proportion",
-                """
-                Ratio compares quantities.
-
-                Learn how to simplify ratios and solve basic
-                proportion problems.
-                """
-            ),
-        ],
-
-        "Form 3 Mathematics": [
-            (
-                "Linear Equations",
-                """
-                Linear equations contain unknown quantities.
-
-                Learn different techniques for solving equations.
-                """
-            ),
-            (
-                "Graphs",
-                """
-                Learn how to plot coordinates, draw straight-line
-                graphs and interpret information from graphs.
-                """
-            ),
-            (
-                "Geometry",
-                """
-                Geometry deals with shapes, angles and properties
-                of figures.
-
-                Learn important angle rules and geometric facts.
-                """
-            ),
-        ],
-
-        "O-Level Mathematics": [
-            (
-                "Algebra Revision",
-                """
-                Revise algebraic expressions, equations, factorisation
-                and simultaneous equations.
-                """
-            ),
-            (
-                "Statistics",
-                """
-                Revise mean, median, mode, range, frequency tables
-                and interpretation of statistical information.
-                """
-            ),
-            (
-                "Trigonometry",
-                """
-                Revise sine, cosine and tangent and learn how to apply
-                trigonometric ratios to examination questions.
-                """
-            ),
-        ],
-
-        "O-Level Science": [
-            (
-                "Cells",
-                """
-                Learn the structure and functions of plant and animal
-                cells and understand the differences between them.
-                """
-            ),
-            (
-                "Forces",
-                """
-                A force is a push or pull.
-
-                Learn about balanced forces, unbalanced forces,
-                friction and effects of forces.
-                """
-            ),
-            (
-                "Energy",
-                """
-                Energy exists in different forms.
-
-                Learn about energy transfers and conservation of energy.
-                """
-            ),
-        ],
-
-        "O-Level Geography": [
-            (
-                "Map Reading",
-                """
-                Learn grid references, scale, direction, symbols and
-                other important map-reading skills.
-                """
-            ),
-            (
-                "Weather and Climate",
-                """
-                Study weather elements, weather instruments and
-                factors affecting climate.
-                """
-            ),
-            (
-                "Population",
-                """
-                Study population distribution, density, growth,
-                migration and population problems.
-                """
-            ),
-        ],
-
-        "A-Level History": [
-            (
-                "Nationalism",
-                """
-                Study the development of nationalism and factors that
-                contributed to nationalist movements.
-                """
-            ),
-            (
-                "Colonialism",
-                """
-                Examine the causes and effects of colonial rule in
-                Africa.
-                """
-            ),
-            (
-                "Independence Movements",
-                """
-                Study the development of African independence movements
-                and the challenges faced during the struggle for
-                independence.
-                """
-            ),
-        ],
-    }
-
-    for course_title, lessons in lesson_data.items():
-
-        course = conn.execute(
-            "SELECT id FROM courses WHERE title=?",
-            (course_title,)
-        ).fetchone()
-
-        if not course:
-            continue
-
-        for position, (title, content) in enumerate(
-            lessons,
-            start=1
-        ):
-
-            existing = conn.execute(
-                """
-                SELECT id
-                FROM lessons
-                WHERE course_id=? AND position=?
-                """,
-                (course["id"], position)
-            ).fetchone()
-
-            if not existing:
-                conn.execute(
-                    """
-                    INSERT INTO lessons(
-                        course_id,
-                        title,
-                        content,
-                        position
-                    )
-                    VALUES(?,?,?,?)
-                    """,
-                    (
-                        course["id"],
-                        title,
-                        content,
-                        position
-                    )
-                )
-
-    # ========================================================
-    # QUIZ DATA
-    # ========================================================
-
-    quiz_data = {
-
-        "Form 1 Mathematics": [
-            (
-                "What is 25% of 80?",
-                "10",
-                "20",
-                "25",
-                "40",
-                "B"
-            ),
-            (
-                "What is 7 × 8?",
-                "54",
-                "56",
-                "64",
-                "48",
-                "B"
-            ),
-            (
-                "Which number is a factor of 24?",
-                "5",
-                "7",
-                "8",
-                "11",
-                "C"
-            ),
-            (
-                "What is 3/4 as a decimal?",
-                "0.25",
-                "0.5",
-                "0.75",
-                "1.25",
-                "C"
-            ),
-        ],
-
-        "Form 2 Mathematics": [
-            (
-                "What is -5 + 8?",
-                "13",
-                "3",
-                "-3",
-                "-13",
-                "B"
-            ),
-            (
-                "Simplify 3x + 2x.",
-                "5",
-                "5x",
-                "6x",
-                "x",
-                "B"
-            ),
-            (
-                "What is 2(3 + 4)?",
-                "10",
-                "12",
-                "14",
-                "16",
-                "C"
-            ),
-            (
-                "What is the ratio 6:9 in simplest form?",
-                "1:2",
-                "2:3",
-                "3:2",
-                "6:3",
-                "B"
-            ),
-        ],
-
-        "Form 3 Mathematics": [
-            (
-                "Solve x + 5 = 12.",
-                "5",
-                "6",
-                "7",
-                "8",
-                "C"
-            ),
-            (
-                "What is the gradient of a horizontal line?",
-                "0",
-                "1",
-                "-1",
-                "Undefined",
-                "A"
-            ),
-            (
-                "How many degrees are in a triangle?",
-                "90",
-                "180",
-                "270",
-                "360",
-                "B"
-            ),
-            (
-                "What is 4²?",
-                "8",
-                "12",
-                "16",
-                "20",
-                "C"
-            ),
-        ],
-
-        "O-Level Mathematics": [
-            (
-                "What is the gradient of y = 3x + 2?",
-                "2",
-                "3",
-                "-3",
-                "1",
-                "B"
-            ),
-            (
-                "What is the mean of 2, 4, 6 and 8?",
-                "4",
-                "5",
-                "6",
-                "7",
-                "B"
-            ),
-        ],
-
-        "O-Level Science": [
-            (
-                "Which organelle controls most cell activities?",
-                "Cell wall",
-                "Nucleus",
-                "Vacuole",
-                "Ribosome",
-                "B"
-            ),
-            (
-                "What is a force?",
-                "A type of energy",
-                "A push or pull",
-                "A type of matter",
-                "A chemical",
-                "B"
-            ),
-            (
-                "Which is a form of energy?",
-                "Mass",
-                "Light",
-                "Volume",
-                "Density",
-                "B"
-            ),
-            (
-                "Which gas is required for aerobic respiration?",
-                "Nitrogen",
-                "Oxygen",
-                "Carbon dioxide",
-                "Hydrogen",
-                "B"
-            ),
-        ],
-
-        "O-Level Geography": [
-            (
-                "What does a map scale show?",
-                "Temperature",
-                "Relationship between map and ground distance",
-                "Rainfall",
-                "Population",
-                "B"
-            ),
-            (
-                "Which instrument measures rainfall?",
-                "Barometer",
-                "Rain gauge",
-                "Thermometer",
-                "Anemometer",
-                "B"
-            ),
-            (
-                "What is population density?",
-                "Birth rate",
-                "Number of people per unit area",
-                "Death rate",
-                "Migration rate",
-                "B"
-            ),
-            (
-                "Which direction is opposite to north?",
-                "East",
-                "West",
-                "South",
-                "North-east",
-                "C"
-            ),
-        ],
-
-        "A-Level History": [
-            (
-                "What is nationalism?",
-                "A type of weather",
-                "A strong identification with and desire for self-rule of a nation",
-                "A farming method",
-                "A trade system",
-                "B"
-            ),
-            (
-                "Colonialism involves:",
-                "Independent trade only",
-                "Control of one territory by another power",
-                "Local elections",
-                "Industrialisation only",
-                "B"
-            ),
-            (
-                "What is independence?",
-                "Loss of sovereignty",
-                "Self-government",
-                "Colonial administration",
-                "Foreign rule",
-                "B"
-            ),
-            (
-                "Nationalist movements generally sought:",
-                "More colonial control",
-                "Self-determination",
-                "Less education",
-                "More taxation",
-                "B"
-            ),
-        ],
-    }
-
-    for course_title, questions in quiz_data.items():
-
-        course = conn.execute(
-            "SELECT id FROM courses WHERE title=?",
-            (course_title,)
-        ).fetchone()
-
-        if not course:
-            continue
-
-        count = conn.execute(
-            "SELECT COUNT(*) AS c FROM quizzes WHERE course_id=?",
-            (course["id"],)
-        ).fetchone()["c"]
-
-        if count == 0:
-
-            for q in questions:
-
-                conn.execute(
-                    """
-                    INSERT INTO quizzes(
-                        course_id,
-                        question,
-                        option_a,
-                        option_b,
-                        option_c,
-                        option_d,
-                        answer
-                    )
-                    VALUES(?,?,?,?,?,?,?)
-                    """,
-                    (
-                        course["id"],
-                        q[0],
-                        q[1],
-                        q[2],
-                        q[3],
-                        q[4],
-                        q[5]
-                    )
-                )
-
-    # ========================================================
-    # INTERACTIVE LESSON ACTIVITIES
-    # ========================================================
-
-    activity_data = {
-
-        "Form 1 Mathematics": [
-            (
-                "What is 25% of 80?",
-                "10",
-                "20",
-                "30",
-                "40",
-                "B"
-            ),
-            (
-                "Which number is a factor of 24?",
-                "5",
-                "6",
-                "7",
-                "11",
-                "B"
-            ),
-            (
-                "What is 3/4 as a decimal?",
-                "0.25",
-                "0.50",
-                "0.75",
-                "1.50",
-                "C"
-            ),
-        ],
-
-        "Form 2 Mathematics": [
-            (
-                "What is -5 + 8?",
-                "3",
-                "-3",
-                "13",
-                "-13",
-                "A"
-            ),
-            (
-                "Simplify 3x + 2x.",
-                "5",
-                "5x",
-                "6x",
-                "x",
-                "B"
-            ),
-            (
-                "What is the simplest form of 6:9?",
-                "1:2",
-                "2:3",
-                "3:2",
-                "6:3",
-                "B"
-            ),
-        ],
-
-        "Form 3 Mathematics": [
-            (
-                "Solve x + 5 = 12.",
-                "5",
-                "6",
-                "7",
-                "8",
-                "C"
-            ),
-            (
-                "What is the gradient of a horizontal line?",
-                "0",
-                "1",
-                "-1",
-                "2",
-                "A"
-            ),
-            (
-                "How many degrees are in a triangle?",
-                "90",
-                "180",
-                "270",
-                "360",
-                "B"
-            ),
-        ],
-
-        "O-Level Mathematics": [
-            (
-                "What is the gradient of y = 3x + 2?",
-                "2",
-                "3",
-                "-3",
-                "1",
-                "B"
-            ),
-            (
-                "What is the mean of 2, 4, 6 and 8?",
-                "4",
-                "5",
-                "6",
-                "7",
-                "B"
-            ),
-            (
-                "What is 12²?",
-                "124",
-                "144",
-                "122",
-                "154",
-                "B"
-            ),
-        ],
-
-        "O-Level Science": [
-            (
-                "Which organelle controls most cell activities?",
-                "Cell wall",
-                "Nucleus",
-                "Vacuole",
-                "Cytoplasm",
-                "B"
-            ),
-            (
-                "A force is best described as:",
-                "A push or pull",
-                "A gas",
-                "A liquid",
-                "A cell",
-                "A"
-            ),
-            (
-                "Which gas is needed for aerobic respiration?",
-                "Nitrogen",
-                "Oxygen",
-                "Hydrogen",
-                "Helium",
-                "B"
-            ),
-        ],
-
-        "O-Level Geography": [
-            (
-                "Which instrument measures rainfall?",
-                "Barometer",
-                "Rain gauge",
-                "Thermometer",
-                "Anemometer",
-                "B"
-            ),
-            (
-                "Population density means:",
-                "Birth rate",
-                "People per unit area",
-                "Death rate",
-                "Migration",
-                "B"
-            ),
-            (
-                "Which direction is opposite north?",
-                "East",
-                "West",
-                "South",
-                "North-east",
-                "C"
-            ),
-        ],
-
-        "A-Level History": [
-            (
-                "Nationalism is strongly associated with:",
-                "Self-determination",
-                "Foreign domination",
-                "Climate",
-                "Agriculture",
-                "A"
-            ),
-            (
-                "Colonialism involves:",
-                "Control of one territory by another power",
-                "Equal partnership only",
-                "Local self-rule",
-                "No political control",
-                "A"
-            ),
-            (
-                "Independence means:",
-                "Foreign rule",
-                "Self-government",
-                "Colonial administration",
-                "Military occupation",
-                "B"
-            ),
-        ],
-    }
-
-    # Put one activity on each lesson if none exists.
-    for course_title, activities in activity_data.items():
-
-        course = conn.execute(
-            "SELECT id FROM courses WHERE title=?",
-            (course_title,)
-        ).fetchone()
-
-        if not course:
-            continue
-
-        lessons = conn.execute(
-            """
-            SELECT *
-            FROM lessons
-            WHERE course_id=?
-            ORDER BY position
-            """,
-            (course["id"],)
-        ).fetchall()
-
-        for lesson, activity in zip(lessons, activities):
-
-            existing = conn.execute(
-                """
-                SELECT id
-                FROM lesson_activities
-                WHERE lesson_id=?
-                """,
-                (lesson["id"],)
-            ).fetchone()
-
-            if not existing:
-
-                conn.execute(
-                    """
-                    INSERT INTO lesson_activities(
-                        lesson_id,
-                        question,
-                        option_a,
-                        option_b,
-                        option_c,
-                        option_d,
-                        answer
-                    )
-                    VALUES(?,?,?,?,?,?,?)
-                    """,
-                    (
-                        lesson["id"],
-                        activity[0],
-                        activity[1],
-                        activity[2],
-                        activity[3],
-                        activity[4],
-                        activity[5],
-                    )
-                )
-
-    # ========================================================
-    # DEFAULT ADMIN
-    # ========================================================
-
-    admin_email = "admin@eaglevisionacademy.co.zw"
-
-    admin = conn.execute(
-        "SELECT id FROM users WHERE email=?",
-        (admin_email,)
-    ).fetchone()
-
-    if not admin:
-
-        conn.execute(
-            """
-            INSERT INTO users(
-                full_name,
-                email,
-                phone,
-                password_hash,
-                role,
-                created_at
-            )
-            VALUES(?,?,?,?,?,?)
-            """,
-            (
-                "Eagle Vision Academy Admin",
-                admin_email,
-                "+263 71 741 0018",
-                generate_password_hash("ChangeMe123!"),
-                "admin",
-                datetime.utcnow().isoformat(),
-            )
-        )
-
-    # ========================================================
-    # INITIALISE ACTIVITY ROWS
-    # ========================================================
-
-    users = conn.execute(
-        "SELECT id FROM users"
-    ).fetchall()
-
-    for user in users:
-
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO student_activity(
-                user_id,
-                last_active
-            )
-            VALUES(?,?)
-            """,
-            (
-                user["id"],
-                datetime.utcnow().isoformat()
-            )
-        )
-
-    conn.commit()
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def now():
-    return datetime.utcnow().isoformat()
-
-
-def normalize_phone(phone):
-    if not phone:
-        return ""
-
-    return "".join(
-        char
-        for char in phone
-        if char.isdigit()
-    )
-
-
-def whatsapp_link(phone):
-    number = normalize_phone(phone)
-
-    if not number:
-        return "#"
-
-    if number.startswith("0"):
-        number = "263" + number[1:]
-
-    if not number.startswith("263"):
-        number = "263" + number
-
-    return "https://wa.me/" + number
-
-
-def create_notification(
-    user_id,
-    title,
-    message,
-    notification_type="info"
-):
-    db = get_db()
-
-    db.execute(
-        """
-        INSERT INTO notifications(
-            user_id,
-            title,
-            message,
-            notification_type,
-            is_read,
-            created_at
-        )
-        VALUES(?,?,?,?,0,?)
-        """,
-        (
-            user_id,
-            title,
-            message,
-            notification_type,
-            now()
-        )
-    )
-
-    db.commit()
-
-
-def notify_admins(
-    title,
-    message,
-    notification_type="info"
-):
-    db = get_db()
-
-    admins = db.execute(
-        """
-        SELECT id
-        FROM users
-        WHERE role='admin'
-        """
-    ).fetchall()
-
-    for admin in admins:
-
-        db.execute(
-            """
-            INSERT INTO notifications(
-                user_id,
-                title,
-                message,
-                notification_type,
-                is_read,
-                created_at
-            )
-            VALUES(?,?,?,?,0,?)
-            """,
-            (
-                admin["id"],
-                title,
-                message,
-                notification_type,
-                now()
-            )
-        )
-
-    db.commit()
-
-
-def touch_student_activity(
-    course_id=None,
-    viewed=False,
-    completed=False,
-    quiz=False,
-    activity=False
-):
-
-    if not g.user:
-        return
-
-    if g.user["role"] != "student":
-        return
-
-    db = get_db()
-
-    row = db.execute(
-        """
-        SELECT *
-        FROM student_activity
-        WHERE user_id=?
-        """,
-        (g.user["id"],)
-    ).fetchone()
-
-    if not row:
-
-        db.execute(
-            """
-            INSERT INTO student_activity(
-                user_id,
-                last_active,
-                lessons_viewed,
-                lessons_completed,
-                quizzes_attempted,
-                activities_attempted,
-                last_course_id
-            )
-            VALUES(?,?,?,?,?,?,?)
-            """,
-            (
-                g.user["id"],
-                now(),
-                1 if viewed else 0,
-                1 if completed else 0,
-                1 if quiz else 0,
-                1 if activity else 0,
-                course_id,
-            )
-        )
-
-    else:
-
-        db.execute(
-            """
-            UPDATE student_activity
-            SET
-                last_active=?,
-                lessons_viewed=lessons_viewed+?,
-                lessons_completed=lessons_completed+?,
-                quizzes_attempted=quizzes_attempted+?,
-                activities_attempted=activities_attempted+?,
-                last_course_id=COALESCE(?, last_course_id)
-            WHERE user_id=?
-            """,
-            (
-                now(),
-                1 if viewed else 0,
-                1 if completed else 0,
-                1 if quiz else 0,
-                1 if activity else 0,
-                course_id,
-                g.user["id"],
-            )
-        )
-
-    db.commit()
-
-
-def student_has_access(course_id):
-
-    if not g.user:
-        return False
-
-    if g.user["role"] in ["admin", "teacher"]:
-        return True
-
-    db = get_db()
-
-    enrollment = db.execute(
-        """
-        SELECT *
-        FROM enrollments
-        WHERE user_id=?
-        AND course_id=?
-        AND status='approved'
-        """,
-        (
-            g.user["id"],
-            course_id
-        )
-    ).fetchone()
-
-    return enrollment is not None
-
-
-def get_unread_notification_count():
-
-    if not g.user:
-        return 0
-
-    db = get_db()
-
-    row = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM notifications
-        WHERE user_id=?
-        AND is_read=0
-        """,
-        (g.user["id"],)
-    ).fetchone()
-
-    return row["c"]
-
-
-# ============================================================
-# AUTH DECORATORS
-# ============================================================
-
-def login_required(func):
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-
-        if not g.user:
-            flash("Please log in first.", "warning")
-            return redirect(url_for("login"))
-
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def admin_required(func):
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-
-        if not g.user or g.user["role"] != "admin":
-            flash("Administrator access required.", "danger")
-            return redirect(url_for("login"))
-
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-def teacher_required(func):
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-
-        if not g.user or g.user["role"] not in [
-            "teacher",
-            "admin"
-        ]:
-            flash("Teacher access required.", "danger")
-            return redirect(url_for("login"))
-
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-# ============================================================
-# LOAD USER
-# ============================================================
+conn = db()
+
+-----------------------------------------------------
+
+TABLES
+
+-----------------------------------------------------
+
+conn.executescript(
+"""
+CREATE TABLE IF NOT EXISTS users(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+full_name TEXT NOT NULL,
+email TEXT UNIQUE NOT NULL,
+phone TEXT,
+password_hash TEXT NOT NULL,
+role TEXT NOT NULL DEFAULT 'student',
+created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS courses(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    title TEXT NOT NULL,    
+    level TEXT NOT NULL,    
+    description TEXT,    
+    price REAL NOT NULL DEFAULT 0,    
+    active INTEGER NOT NULL DEFAULT 1    
+);    
+
+CREATE TABLE IF NOT EXISTS lessons(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    course_id INTEGER NOT NULL,    
+    title TEXT NOT NULL,    
+    content TEXT,    
+    video_url TEXT,    
+    position INTEGER NOT NULL DEFAULT 1,    
+    FOREIGN KEY(course_id) REFERENCES courses(id)    
+);    
+
+CREATE TABLE IF NOT EXISTS enrollments(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    user_id INTEGER NOT NULL,    
+    course_id INTEGER NOT NULL,    
+    status TEXT NOT NULL DEFAULT 'pending',    
+    created_at TEXT NOT NULL,    
+    UNIQUE(user_id, course_id),    
+    FOREIGN KEY(user_id) REFERENCES users(id),    
+    FOREIGN KEY(course_id) REFERENCES courses(id)    
+);    
+
+CREATE TABLE IF NOT EXISTS lesson_progress(    
+    user_id INTEGER NOT NULL,    
+    lesson_id INTEGER NOT NULL,    
+    completed INTEGER NOT NULL DEFAULT 0,    
+    completed_at TEXT,    
+    PRIMARY KEY(user_id, lesson_id)    
+);    
+
+CREATE TABLE IF NOT EXISTS quizzes(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    course_id INTEGER NOT NULL,    
+    question TEXT NOT NULL,    
+    option_a TEXT NOT NULL,    
+    option_b TEXT NOT NULL,    
+    option_c TEXT NOT NULL,    
+    option_d TEXT NOT NULL,    
+    answer TEXT NOT NULL,    
+    FOREIGN KEY(course_id) REFERENCES courses(id)    
+);    
+
+CREATE TABLE IF NOT EXISTS quiz_attempts(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    user_id INTEGER NOT NULL,    
+    quiz_id INTEGER NOT NULL,    
+    score INTEGER NOT NULL,    
+    attempted_at TEXT NOT NULL,    
+    FOREIGN KEY(user_id) REFERENCES users(id),    
+    FOREIGN KEY(quiz_id) REFERENCES quizzes(id)    
+);    
+
+CREATE TABLE IF NOT EXISTS payments(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    user_id INTEGER NOT NULL,    
+    course_id INTEGER NOT NULL,    
+    method TEXT NOT NULL,    
+    reference TEXT NOT NULL,    
+    status TEXT NOT NULL DEFAULT 'pending',    
+    created_at TEXT NOT NULL,    
+    FOREIGN KEY(user_id) REFERENCES users(id),    
+    FOREIGN KEY(course_id) REFERENCES courses(id)    
+);    
+
+CREATE TABLE IF NOT EXISTS teacher_courses(    
+    id INTEGER PRIMARY KEY AUTOINCREMENT,    
+    teacher_id INTEGER NOT NULL,    
+    course_id INTEGER NOT NULL,    
+    assigned_at TEXT NOT NULL,    
+    UNIQUE(teacher_id, course_id),    
+    FOREIGN KEY(teacher_id) REFERENCES users(id),    
+    FOREIGN KEY(course_id) REFERENCES courses(id)    
+);    
+"""
+
+)
+
+=====================================================
+
+COURSES
+
+=====================================================
+
+if conn.execute(
+"SELECT COUNT(*) FROM courses"
+).fetchone()[0] == 0:
+
+courses = [    
+    (    
+        "Form 1 Mathematics",    
+        "Form 1",    
+        "Build strong foundations in mathematics.",    
+        5,    
+    ),    
+    (    
+        "Form 2 Mathematics",    
+        "Form 2",    
+        "Master key Form 2 concepts and exam skills.",    
+        5,    
+    ),    
+    (    
+        "Form 3 Mathematics",    
+        "Form 3",    
+        "Develop problem-solving and examination confidence.",    
+        5,    
+    ),    
+    (    
+        "O-Level Mathematics",    
+        "Form 4 / O-Level",    
+        "Complete revision, past papers and exam strategy.",    
+        10,    
+    ),    
+    (    
+        "O-Level Science",    
+        "Form 4 / O-Level",    
+        "Science concepts, practical thinking and exam practice.",    
+        10,    
+    ),    
+    (    
+        "O-Level Geography",    
+        "Form 4 / O-Level",    
+        "Geography concepts, maps, data and examination practice.",    
+        10,    
+    ),    
+    (    
+        "A-Level History",    
+        "Lower 6 / A-Level",    
+        "Structured history lessons and essay practice.",    
+        10,    
+    ),    
+]    
+
+conn.executemany(    
+    """    
+    INSERT INTO courses    
+    (title, level, description, price)    
+    VALUES (?, ?, ?, ?)    
+    """,    
+    courses,    
+)    
+
+conn.commit()
+
+=====================================================
+
+LESSONS
+
+=====================================================
+
+course_rows = conn.execute(
+"SELECT id, title FROM courses"
+).fetchall()
+
+lesson_content = {
+
+"Form 1 Mathematics": [    
+
+    (    
+        "Number Skills",    
+        """Numbers are the foundation of mathematics. In this lesson,
+
+students learn place value, factors, multiples, prime numbers, fractions,
+decimals and percentages.
+
+Worked example:
+Find 25% of 80.
+25% = 25/100
+25/100 × 80 = 20
+
+Practice:
+
+1. Find the factors of 24.
+
+
+2. Convert 0.75 into a fraction.
+
+
+3. Find 15% of 200.""",
+1,
+),
+
+
+
+(
+"Algebra Basics",
+"""Algebra uses letters to represent unknown numbers.
+
+Example:
+If x + 7 = 15, subtract 7 from both sides:
+x = 8.
+
+Students should learn to simplify expressions, substitute values and
+solve simple equations.
+
+Practice:
+
+1. Simplify 3x + 2x.
+
+
+2. Solve x + 9 = 17.
+
+
+3. Find the value of 2a + 3 when a = 4.""",
+2,
+),
+
+
+
+(
+"Geometry and Measurement",
+"""Geometry deals with shapes, angles, length, area and volume.
+
+Important ideas include:
+• Angles on a straight line total 180°.
+• Angles around a point total 360°.
+• The area of a rectangle is length × width.
+• The perimeter of a rectangle is 2(length + width).
+
+Practice:
+
+1. Find the area of a rectangle measuring 8 cm by 5 cm.
+
+
+2. Find the perimeter of a rectangle measuring 7 cm by 4 cm.
+
+
+3. Find the missing angle on a straight line if one angle is 65°.""",
+3,
+),
+],
+
+
+
+"Form 2 Mathematics": [
+
+(    
+     "Algebraic Expressions",    
+     """Algebraic expressions contain numbers, variables and operations.
+
+Like terms can be combined.
+
+Example:
+3x + 5x - 2 = 8x - 2.
+
+When multiplying:
+4 × x = 4x.
+
+When substituting x = 3 into 2x + 5:
+2(3) + 5 = 11.
+
+Practice:
+
+1. Simplify 7x + 3x - 4.
+
+
+2. Simplify 5a + 2a + 6.
+
+
+3. Find the value of 3x + 2 when x = 4.""",
+1,
+),
+
+
+
+(
+"Linear Equations and Graphs",
+"""A linear equation can be solved by keeping both sides balanced.
+
+Example:
+3x + 4 = 19
+3x = 15
+x = 5.
+
+Linear graphs can be represented using ordered pairs and coordinate axes.
+
+Remember:
+The horizontal axis is the x-axis.
+The vertical axis is the y-axis.
+
+Practice:
+
+1. Solve 2x + 7 = 17.
+
+
+2. Solve 5x - 3 = 22.
+
+
+3. Plot the points (1,2), (2,4) and (3,6).""",
+2,
+),
+
+
+
+(
+"Geometry and Mensuration",
+"""Mensuration involves measuring lengths, areas and volumes.
+
+For a triangle:
+Area = ½ × base × height.
+
+For a rectangle:
+Area = length × width.
+
+Angles in a triangle add up to 180°.
+
+Example:
+A triangle has angles 50° and 60°.
+Third angle = 180° - 50° - 60° = 70°.
+
+Practice:
+
+1. Find the area of a triangle with base 10 cm and height 6 cm.
+
+
+2. Find the missing angle in a triangle with angles 45° and 75°.
+
+
+3. Find the area of a rectangle measuring 12 cm by 5 cm.""",
+3,
+),
+],
+
+
+
+"Form 3 Mathematics": [
+
+(    
+     "Advanced Algebra",    
+     """Form 3 algebra develops skills in equations, factorisation
+
+and algebraic manipulation.
+
+Example:
+x² + 5x + 6
+= (x + 2)(x + 3).
+
+Students should practise collecting like terms, expanding brackets and
+factorising expressions.
+
+Practice:
+
+1. Expand (x + 3)(x + 2).
+
+
+2. Factorise x² + 7x + 12.
+
+
+3. Solve 2x + 5 = 17.""",
+1,
+),
+
+
+
+(
+"Functions and Graphs",
+"""A function connects an input value to an output value.
+
+For y = 2x + 1:
+
+If x = 1:
+y = 2(1) + 1 = 3.
+
+If x = 2:
+y = 2(2) + 1 = 5.
+
+Tables of values can be used to plot straight-line graphs.
+
+Practice:
+
+1. Find y when x = 4 for y = 3x + 2.
+
+
+2. Complete a table for y = 2x - 1.
+
+
+3. Plot a straight-line graph from a table of values.""",
+2,
+),
+
+
+
+(
+"Trigonometry and Geometry",
+"""Trigonometry can be used to calculate unknown sides and angles
+
+in right-angled triangles.
+
+The three basic ratios are sine, cosine and tangent.
+
+Students should identify the opposite, adjacent and hypotenuse sides
+before choosing a ratio.
+
+Practice:
+
+1. Identify the hypotenuse in a right-angled triangle.
+
+
+2. State which trigonometric ratio uses opposite and adjacent sides.
+
+
+3. Use a suitable trigonometric ratio to find an unknown angle.""",
+3,
+),
+],
+
+
+
+"O-Level Mathematics": [
+
+(    
+     "Number and Algebra Revision",    
+     """O-Level Mathematics requires strong number and algebra skills.
+
+Revise:
+• Fractions
+• Decimals
+• Percentages
+• Indices
+• Standard form
+• Algebraic expressions
+• Equations
+• Simultaneous equations
+
+Example:
+2x + 3 = 11
+2x = 8
+x = 4.
+
+Practice:
+
+1. Solve 4x - 7 = 21.
+
+
+2. Simplify 3a + 5a - 2.
+
+
+3. Convert 0.125 into a fraction.""",
+1,
+),
+
+
+
+(
+"Geometry, Graphs and Trigonometry",
+"""Geometry questions require careful use of angle facts,
+
+shape properties and measurement formulas.
+
+Important facts:
+Angles in a triangle = 180°.
+Angles in a quadrilateral = 360°.
+
+Trigonometry is especially useful in right-angled triangles.
+
+Students should show working clearly and include correct units.
+
+Practice:
+
+1. Find a missing angle in a triangle.
+
+
+2. Calculate the area of a circle when the radius is given.
+
+
+3. Use trigonometry to find an unknown side.""",
+2,
+),
+
+
+
+(
+"Statistics and Exam Practice",
+"""Statistics includes mean, median, mode and range.
+
+Example:
+For 2, 4, 6, 8, 10:
+Mean = 30 ÷ 5 = 6.
+
+Exam technique is also important. Read every question carefully,
+show your working and check your final answer.
+
+Practice:
+
+1. Find the mean of 4, 6, 8 and 10.
+
+
+2. Find the range of 3, 9, 5, 12 and 7.
+
+
+3. Attempt a past-examination-style mathematics question.""",
+3,
+),
+],
+
+
+
+"O-Level Science": [
+
+(    
+     "Cells and Living Organisms",    
+     """Cells are the basic units of living organisms.
+
+Plant cells contain structures such as the cell wall, cell membrane,
+cytoplasm, nucleus, chloroplasts and a large permanent vacuole.
+
+Animal cells contain a cell membrane, cytoplasm and nucleus but do not
+have a cell wall or chloroplasts.
+
+Practice:
+
+1. State the function of the nucleus.
+
+
+2. Name a structure found in plant cells but not animal cells.
+
+
+3. Explain why chloroplasts are important to plants.""",
+1,
+),
+
+
+
+(
+"Matter and Chemical Reactions",
+"""Matter exists mainly as solids, liquids and gases.
+
+Chemical reactions produce new substances.
+
+Signs of a chemical reaction may include a colour change, gas production,
+temperature change or formation of a precipitate.
+
+Students should learn to identify reactants and products.
+
+Practice:
+
+1. Name the three common states of matter.
+
+
+2. Give one sign of a chemical reaction.
+
+
+3. Distinguish between a physical and chemical change.""",
+2,
+),
+
+
+
+(
+"Forces, Energy and Practical Skills",
+"""Forces can change the motion or shape of objects.
+
+Energy can be transferred between different forms.
+
+Science examinations also test practical skills such as identifying
+variables, recording results, drawing tables and interpreting graphs.
+
+Practice:
+
+1. Give two effects of a force.
+
+
+2. Name two forms of energy.
+
+
+3. Identify the independent variable in a simple experiment.""",
+3,
+),
+],
+
+
+
+"O-Level Geography": [
+
+(    
+     "Mapwork Skills",    
+     """Mapwork is an important part of Geography.
+
+Students should understand grid references, direction, scale, distance,
+symbols and contour lines.
+
+Always read the map carefully before answering questions.
+
+Practice:
+
+1. What is a grid reference used for?
+
+
+2. What information does a map scale provide?
+
+
+3. Explain what closely spaced contour lines indicate.""",
+1,
+),
+
+
+
+(
+"Physical Geography",
+"""Physical Geography studies natural processes and features.
+
+Topics include weather, climate, rivers, rocks, soils and landforms.
+
+Rivers can erode, transport and deposit material.
+
+Practice:
+
+1. Name three processes of river erosion.
+
+
+2. Explain how a river can transport sediment.
+
+
+3. Distinguish between weather and climate.""",
+2,
+),
+
+
+
+(
+"Human Geography and Environment",
+"""Human Geography examines how people interact with places.
+
+Topics include population, settlement, agriculture, industry,
+transport and environmental management.
+
+Students should learn causes, effects and possible solutions when
+answering environmental questions.
+
+Practice:
+
+1. Give two factors affecting population distribution.
+
+
+2. State two environmental problems caused by human activity.
+
+
+3. Suggest one way of conserving natural resources.""",
+3,
+),
+],
+
+
+
+"A-Level History": [
+
+(    
+     "Zimbabwe and African History",    
+     """History involves studying change and continuity over time.
+
+Students should identify causes, events, consequences and significance.
+
+When answering an essay question, develop arguments and support them
+with relevant historical evidence.
+
+Practice:
+
+1. Explain two causes of a major historical event.
+
+
+2. Identify two consequences of a historical development.
+
+
+3. Write a paragraph using specific historical evidence.""",
+1,
+),
+
+
+
+(
+"Source Analysis",
+"""Historical sources can include speeches, letters,
+
+photographs, newspapers and official documents.
+
+When analysing a source, consider its content, origin, purpose,
+context and reliability.
+
+Do not simply copy the source. Explain what the evidence means.
+
+Practice:
+
+1. Identify the purpose of a historical source.
+
+
+2. Explain one reason why a source may be biased.
+
+
+3. Compare information from two different sources.""",
+2,
+),
+
+
+
+(
+"Essay Writing and Examination Skills",
+"""A strong History essay needs a clear argument,
+
+well-developed paragraphs and relevant evidence.
+
+A useful paragraph structure is:
+Point → Evidence → Explanation → Link.
+
+Always answer the exact question asked and organise your ideas logically.
+
+Practice:
+
+1. Write an introduction to a History essay.
+
+
+2. Develop one argument using supporting evidence.
+
+
+3. Write a conclusion that answers the question directly.""",
+3,
+),
+],
+}
+
+
+
+for course_row in course_rows:
+
+course_id = course_row["id"]
+course_title = course_row["title"]
+
+lessons = lesson_content.get(
+course_title,
+[],
+)
+
+for title, content, position in lessons:
+
+existing = conn.execute(    
+     """    
+     SELECT id    
+     FROM lessons    
+     WHERE course_id=?    
+       AND position=?    
+     """,    
+     (    
+         course_id,    
+         position,    
+     ),    
+ ).fetchone()    
+
+ if existing:    
+
+     conn.execute(    
+         """    
+         UPDATE lessons    
+         SET title=?,    
+             content=?    
+         WHERE id=?    
+         """,    
+         (    
+             title,    
+             content,    
+             existing["id"],    
+         ),    
+     )    
+
+ else:    
+
+     conn.execute(    
+         """    
+         INSERT INTO lessons    
+         (    
+             course_id,    
+             title,    
+             content,    
+             video_url,    
+             position    
+         )    
+         VALUES (?, ?, ?, ?, ?)    
+         """,    
+         (    
+             course_id,    
+             title,    
+             content,    
+             "",    
+             position,    
+         ),    
+     )
+
+conn.commit()
+
+=====================================================
+
+QUIZ SEEDING HELPER
+
+=====================================================
+
+def seed_quiz(course_title, questions):
+
+course_row = conn.execute(
+"""
+SELECT id
+FROM courses
+WHERE title=?
+""",
+(course_title,),
+).fetchone()
+
+if not course_row:
+return
+
+course_id = course_row["id"]
+
+existing_count = conn.execute(
+"""
+SELECT COUNT(*)
+FROM quizzes
+WHERE course_id=?
+""",
+(course_id,),
+).fetchone()[0]
+
+if existing_count == 0:
+
+formatted = []    
+
+ for question in questions:    
+
+     formatted.append(    
+         (    
+             course_id,    
+             question[0],    
+             question[1],    
+             question[2],    
+             question[3],    
+             question[4],    
+             question[5],    
+         )    
+     )    
+
+ conn.executemany(    
+     """    
+     INSERT INTO quizzes    
+     (    
+         course_id,    
+         question,    
+         option_a,    
+         option_b,    
+         option_c,    
+         option_d,    
+         answer    
+     )    
+     VALUES (?, ?, ?, ?, ?, ?, ?)    
+     """,    
+     formatted,    
+ )    
+
+ conn.commit()
+
+=====================================================
+
+FORM 1 MATHEMATICS QUIZ
+
+=====================================================
+
+seed_quiz(
+"Form 1 Mathematics",
+[
+(
+"What is 15 + 27?",
+"32",
+"42",
+"52",
+"62",
+"B",
+),
+(
+"What is 7 × 6?",
+"36",
+"42",
+"48",
+"56",
+"B",
+),
+(
+"What is the place value of 5 in 3,542?",
+"5",
+"50",
+"500",
+"5000",
+"C",
+),
+(
+"Which fraction is equivalent to 1/2?",
+"1/3",
+"2/4",
+"3/5",
+"4/5",
+"B",
+),
+],
+)
+
+=====================================================
+
+FORM 2 MATHEMATICS QUIZ
+
+=====================================================
+
+seed_quiz(
+"Form 2 Mathematics",
+[
+(
+"Solve: x + 7 = 15",
+"6",
+"7",
+"8",
+"9",
+"C",
+),
+(
+"What is 25% of 80?",
+"10",
+"15",
+"20",
+"25",
+"C",
+),
+(
+"What is the perimeter of a square with side length 6 cm?",
+"12 cm",
+"18 cm",
+"24 cm",
+"36 cm",
+"C",
+),
+(
+"Simplify: 3x + 2x",
+"5",
+"5x",
+"6x",
+"x",
+"B",
+),
+],
+)
+
+=====================================================
+
+FORM 3 MATHEMATICS QUIZ
+
+=====================================================
+
+seed_quiz(
+"Form 3 Mathematics",
+[
+(
+"Solve: 2x + 4 = 12",
+"2",
+"4",
+"6",
+"8",
+"B",
+),
+(
+"What is the gradient of the line y = 3x + 2?",
+"2",
+"3",
+"5",
+"6",
+"B",
+),
+(
+"What is √81?",
+"7",
+"8",
+"9",
+"10",
+"C",
+),
+(
+"A triangle has angles of 50° and 60°. What is the third angle?",
+"60°",
+"70°",
+"80°",
+"90°",
+"B",
+),
+],
+)
+
+=====================================================
+
+O-LEVEL MATHEMATICS QUIZ
+
+=====================================================
+
+seed_quiz(
+"O-Level Mathematics",
+[
+(
+"What is 12 × 8?",
+"86",
+"96",
+"108",
+"88",
+"B",
+),
+(
+"Solve: 2x = 10",
+"2",
+"5",
+"10",
+"20",
+"B",
+),
+],
+)
+
+=====================================================
+
+O-LEVEL SCIENCE QUIZ
+
+=====================================================
+
+seed_quiz(
+"O-Level Science",
+[
+(
+"Which organ pumps blood around the human body?",
+"Lungs",
+"Heart",
+"Kidney",
+"Liver",
+"B",
+),
+(
+"Which gas is needed for respiration?",
+"Oxygen",
+"Nitrogen",
+"Carbon dioxide",
+"Hydrogen",
+"A",
+),
+(
+"What is the SI unit of force?",
+"Joule",
+"Watt",
+"Newton",
+"Pascal",
+"C",
+),
+(
+"Which part of a plant absorbs most water from the soil?",
+"Flower",
+"Root",
+"Leaf",
+"Fruit",
+"B",
+),
+],
+)
+
+=====================================================
+
+O-LEVEL GEOGRAPHY QUIZ
+
+=====================================================
+
+seed_quiz(
+"O-Level Geography",
+[
+(
+"Which instrument is used to measure rainfall?",
+"Thermometer",
+"Rain gauge",
+"Barometer",
+"Anemometer",
+"B",
+),
+(
+"What is the main cause of day and night?",
+"The Earth's revolution around the Sun",
+"The Earth's rotation on its axis",
+"The movement of the Moon",
+"Changes in the seasons",
+"B",
+),
+(
+"Which type of rainfall occurs when moist air is forced to rise over mountains?",
+"Convectional rainfall",
+"Relief rainfall",
+"Frontal rainfall",
+"Evaporation",
+"B",
+),
+(
+"Which layer of the Earth is the solid outer layer on which the continents are found?",
+"Crust",
+"Mantle",
+"Outer core",
+"Inner core",
+"A",
+),
+],
+)
+
+=====================================================
+
+A-LEVEL HISTORY QUIZ
+
+=====================================================
+
+seed_quiz(
+"A-Level History",
+[
+(
+"What event immediately triggered the First World War in 1914?",
+"The assassination of Archduke Franz Ferdinand",
+"The invasion of Poland",
+"The Russian Revolution",
+"The signing of the Treaty of Versailles",
+"A",
+),
+(
+"Which country was ruled by Adolf Hitler?",
+"Italy",
+"Germany",
+"France",
+"Russia",
+"B",
+),
+(
+"What was a major purpose of the Berlin Conference of 1884–1885?",
+"To divide Africa among European powers",
+"To end the First World War",
+"To establish the United Nations",
+"To create the European Union",
+"A",
+),
+(
+"Which international organization was established after the Second World War to promote peace and cooperation?",
+"League of Nations",
+"United Nations",
+"African Union",
+"European Union",
+"B",
+),
+],
+)
+
+=====================================================
+
+ADMIN USER
+
+=====================================================
+
+admin_exists = conn.execute(
+"""
+SELECT 1
+FROM users
+WHERE email=?
+""",
+(
+"admin@eaglevisionacademy.co.zw",
+),
+).fetchone()
+
+if not admin_exists:
+
+conn.execute(
+"""
+INSERT INTO users
+(
+full_name,
+email,
+phone,
+password_hash,
+role,
+created_at
+)
+VALUES (?, ?, ?, ?, ?, ?)
+""",
+(
+"Eagle Vision Admin",
+"admin@eaglevisionacademy.co.zw",
+"+263 71 741 0018",
+generate_password_hash(
+"ChangeMe123!"
+),
+"admin",
+datetime.utcnow().isoformat(),
+),
+)
+
+conn.commit()
+
+=========================================================
+
+USER LOADING
+
+=========================================================
 
 @app.before_request
 def load_user():
 
-    g.user = None
+g.user = None
 
-    user_id = session.get("user_id")
+if session.get("user_id"):
 
-    if user_id:
+g.user = db().execute(    
+    """    
+    SELECT *    
+    FROM users    
+    WHERE id=?    
+    """,    
+    (    
+        session["user_id"],    
+    ),    
+).fetchone()
 
-        db = get_db()
+=========================================================
 
-        g.user = db.execute(
-            """
-            SELECT *
-            FROM users
-            WHERE id=?
-            """,
-            (user_id,)
-        ).fetchone()
+ACCESS CONTROL
 
-    # --------------------------------------------------------
-    # Require parent/guardian phone before students continue
-    # --------------------------------------------------------
+=========================================================
 
-    if (
-        g.user
-        and g.user["role"] == "student"
-        and not g.user["parent_phone"]
-        and request.endpoint not in [
-            "parent_contact",
-            "logout",
-            "static",
-        ]
-    ):
-        return redirect(url_for("parent_contact"))
+def login_required(view):
 
-    # Track student activity
-    if (
-        g.user
-        and g.user["role"] == "student"
-        and request.endpoint not in [
-            "static",
-            "login",
-            "register",
-        ]
-    ):
-        touch_student_activity()
+@wraps(view)
+def wrapped(*args, **kwargs):
 
+if not g.user:    
 
-# ============================================================
-# STARTUP
-# ============================================================
+    flash(    
+        "Please log in to continue."    
+    )    
 
-with app.app_context():
-    init_db()
+    return redirect(    
+        url_for("login")    
+    )    
 
+return view(*args, **kwargs)
 
-# ============================================================
-# HOME
-# ============================================================
+return wrapped
+
+def admin_required(view):
+
+@wraps(view)
+def wrapped(*args, **kwargs):
+
+if (    
+    not g.user    
+    or g.user["role"] != "admin"    
+):    
+
+    flash(    
+        "Administrator access required."    
+    )    
+
+    return redirect(    
+        url_for("login")    
+    )    
+
+return view(*args, **kwargs)
+
+return wrapped
+
+def teacher_required(view):
+
+@wraps(view)
+def wrapped(*args, **kwargs):
+
+if (    
+    not g.user    
+    or g.user["role"] != "teacher"    
+):    
+
+    flash(    
+        "Teacher access required."    
+    )    
+
+    return redirect(    
+        url_for("login")    
+    )    
+
+return view(*args, **kwargs)
+
+return wrapped
+
+=========================================================
+
+HOME
+
+=========================================================
 
 @app.route("/")
 def index():
-    return render_template("index.html")
 
+courses = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE active=1
+ORDER BY id
+"""
+).fetchall()
+
+return render_template(
+"index.html",
+courses=courses,
+)
+
+=========================================================
+
+SEO - ROBOTS.TXT
+
+=========================================================
 
 @app.route("/robots.txt")
-def robots():
-    return Response(
-        "User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n",
-        mimetype="text/plain"
-    )
+def robots_txt():
 
+content = """User-agent: *
+
+Allow: /
+
+Sitemap: https://eagle-vision-online-academy.onrender.com/sitemap.xml
+"""
+
+return (
+content,
+200,
+{
+"Content-Type": "text/plain"
+}
+)
+
+=========================================================
+
+SEO - SITEMAP.XML
+
+=========================================================
 
 @app.route("/sitemap.xml")
 def sitemap():
 
-    pages = [
-        url_for("index", _external=True),
-        url_for("register", _external=True),
-        url_for("login", _external=True),
-    ]
+courses = db().execute(
+"""
+SELECT id
+FROM courses
+WHERE active=1
+ORDER BY id
+"""
+).fetchall()
 
-    xml = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-    ]
+urls = [
+"https://eagle-vision-online-academy.onrender.com/",
+"https://eagle-vision-online-academy.onrender.com/register",
+"https://eagle-vision-online-academy.onrender.com/login",
+]
 
-    for page in pages:
-        xml.append(
-            f"<url><loc>{page}</loc></url>"
-        )
+for course in courses:
 
-    xml.append("</urlset>")
+urls.append(    
+    f"https://eagle-vision-online-academy.onrender.com/course/{course['id']}"    
+)
 
-    return Response(
-        "\n".join(xml),
-        mimetype="application/xml"
-    )
+xml = """<?xml version="1.0" encoding="UTF-8"?>
 
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">    
+"""  for url in urls:    xml += f"""    <url>    
+<loc>{url}</loc>
 
-# ============================================================
-# REGISTER
-# ============================================================
+</url>  """
 
-@app.route("/register", methods=["GET", "POST"])
-def register():
+xml += "</urlset>"
 
-    if request.method == "POST":
+return (
+xml,
+200,
+{
+"Content-Type": "application/xml"
+}
+)
 
-        full_name = request.form.get(
-            "full_name",
-            ""
-        ).strip()
+=========================================================
 
-        email = request.form.get(
-            "email",
-            ""
-        ).strip().lower()
+REGISTER
 
-        phone = request.form.get(
-            "phone",
-            ""
-        ).strip()
-
-        password = request.form.get(
-            "password",
-            ""
-        )
-
-        if not full_name or not email or not password:
-
-            flash(
-                "Please complete all required fields.",
-                "danger"
-            )
-
-            return render_template(
-                "register.html"
-            )
-
-        if len(password) < 6:
-
-            flash(
-                "Password must contain at least 6 characters.",
-                "danger"
-            )
-
-            return render_template(
-                "register.html"
-            )
-
-        db = get_db()
-
-        existing = db.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE email=?
-            """,
-            (email,)
-        ).fetchone()
-
-        if existing:
-
-            flash(
-                "An account with that email already exists.",
-                "warning"
-            )
-
-            return render_template(
-                "register.html"
-            )
-
-        cursor = db.execute(
-            """
-            INSERT INTO users(
-                full_name,
-                email,
-                phone,
-                password_hash,
-                role,
-                created_at
-            )
-            VALUES(?,?,?,?,?,?)
-            """,
-            (
-                full_name,
-                email,
-                phone,
-                generate_password_hash(password),
-                "student",
-                now()
-            )
-        )
-
-        user_id = cursor.lastrowid
-
-        db.execute(
-            """
-            INSERT OR IGNORE INTO student_activity(
-                user_id,
-                last_active
-            )
-            VALUES(?,?)
-            """,
-            (
-                user_id,
-                now()
-            )
-        )
-
-        db.commit()
-
-        session["user_id"] = user_id
-
-        flash(
-            "Account created successfully. Please add your parent/guardian phone number.",
-            "success"
-        )
-
-        return redirect(
-            url_for("parent_contact")
-        )
-
-    return render_template("register.html")
-
-
-# ============================================================
-# PARENT/GUARDIAN CONTACT
-# ============================================================
+=========================================================
 
 @app.route(
-    "/parent-contact",
-    methods=["GET", "POST"]
+"/register",
+methods=["GET", "POST"],
 )
-@login_required
-def parent_contact():
+def register():
 
-    if g.user["role"] != "student":
-        return redirect(url_for("dashboard"))
+if request.method == "POST":
 
-    if request.method == "POST":
+name = request.form[    
+    "full_name"    
+].strip()    
 
-        parent_phone = request.form.get(
-            "parent_phone",
-            ""
-        ).strip()
+email = request.form[    
+    "email"    
+].strip().lower()    
 
-        if not parent_phone:
+phone = request.form.get(    
+    "phone",    
+    "",    
+).strip()    
 
-            flash(
-                "Parent/guardian phone number is required.",
-                "danger"
-            )
+password = request.form[    
+    "password"    
+]    
 
-            return redirect(
-                url_for("parent_contact")
-            )
+if len(password) < 8:    
 
-        if len(normalize_phone(parent_phone)) < 9:
+    flash(    
+        "Password must be at least 8 characters."    
+    )    
 
-            flash(
-                "Please enter a valid parent/guardian phone number.",
-                "danger"
-            )
+    return redirect(    
+        url_for("register")    
+    )    
 
-            return redirect(
-                url_for("parent_contact")
-            )
+try:    
 
-        db = get_db()
+    cur = db().execute(    
+        """    
+        INSERT INTO users    
+        (    
+            full_name,    
+            email,    
+            phone,    
+            password_hash,    
+            created_at    
+        )    
+        VALUES (?, ?, ?, ?, ?)    
+        """,    
+        (    
+            name,    
+            email,    
+            phone,    
+            generate_password_hash(    
+                password    
+            ),    
+            datetime.utcnow().isoformat(),    
+        ),    
+    )    
 
-        db.execute(
-            """
-            UPDATE users
-            SET parent_phone=?
-            WHERE id=?
-            """,
-            (
-                parent_phone,
-                g.user["id"]
-            )
-        )
+    db().commit()    
 
-        db.commit()
+    session["user_id"] = cur.lastrowid    
 
-        notify_admins(
-            "New parent contact information",
-            f"{g.user['full_name']} has provided a parent/guardian phone number.",
-            "info"
-        )
+    flash(    
+        "Welcome to the Eagle Family!"    
+    )    
 
-        flash(
-            "Parent/guardian contact saved successfully.",
-            "success"
-        )
+    return redirect(    
+        url_for("dashboard")    
+    )    
 
-        return redirect(
-            url_for("dashboard")
-        )
+except sqlite3.IntegrityError:    
 
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <title>Parent / Guardian Contact</title>
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <style>
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f3f6fb;
-                    padding:30px;
-                }
-                .box{
-                    max-width:520px;
-                    margin:40px auto;
-                    background:white;
-                    padding:30px;
-                    border-radius:16px;
-                    box-shadow:0 5px 25px rgba(0,0,0,.08);
-                }
-                h1{color:#102a56;}
-                input{
-                    width:100%;
-                    padding:14px;
-                    box-sizing:border-box;
-                    border:1px solid #ccc;
-                    border-radius:8px;
-                    margin:10px 0 20px;
-                }
-                button{
-                    width:100%;
-                    padding:14px;
-                    border:0;
-                    border-radius:8px;
-                    background:#f5c400;
-                    font-weight:bold;
-                    cursor:pointer;
-                }
-                .note{
-                    background:#eef5ff;
-                    padding:15px;
-                    border-radius:10px;
-                    margin-bottom:20px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="box">
-                <h1>Parent / Guardian Contact</h1>
-
-                <div class="note">
-                    Eagle Vision Online Academy requires every student
-                    to provide a parent or guardian contact number.
-                    This allows the academy to communicate important
-                    learning and participation matters to parents.
-                </div>
-
-                <form method="post">
-
-                    <label>Parent / Guardian Phone Number</label>
-
-                    <input
-                        type="tel"
-                        name="parent_phone"
-                        placeholder="+263 7X XXX XXXX"
-                        value="{{ g.user['parent_phone'] or '' }}"
-                        required
-                    >
-
-                    <button type="submit">
-                        Save Parent Contact
-                    </button>
-
-                </form>
-            </div>
-        </body>
-        </html>
-        """
+    flash(    
+        "That email is already registered."    
     )
 
+return render_template(
+"register.html"
+)
 
-# ============================================================
-# LOGIN
-# ============================================================
+=========================================================
 
-@app.route("/login", methods=["GET", "POST"])
+LOGIN
+
+=========================================================
+
+@app.route(
+"/login",
+methods=["GET", "POST"],
+)
 def login():
 
-    if request.method == "POST":
+if request.method == "POST":
 
-        email = request.form.get(
-            "email",
-            ""
-        ).strip().lower()
+email = request.form[    
+    "email"    
+].strip().lower()    
 
-        password = request.form.get(
-            "password",
-            ""
-        )
+password = request.form[    
+    "password"    
+]    
 
-        db = get_db()
+user = db().execute(    
+    """    
+    SELECT *    
+    FROM users    
+    WHERE email=?    
+    """,    
+    (    
+        email,    
+    ),    
+).fetchone()    
 
-        user = db.execute(
-            """
-            SELECT *
-            FROM users
-            WHERE email=?
-            """,
-            (email,)
-        ).fetchone()
+if (    
+    user    
+    and check_password_hash(    
+        user["password_hash"],    
+        password,    
+    )    
+):    
 
-        if user and check_password_hash(
-            user["password_hash"],
-            password
-        ):
+    session["user_id"] = user["id"]    
 
-            session["user_id"] = user["id"]
+    if user["role"] == "admin":    
 
-            if user["role"] == "admin":
-                return redirect(url_for("admin"))
+        return redirect(    
+            url_for("admin")    
+        )    
 
-            if user["role"] == "teacher":
-                return redirect(url_for("teacher"))
+    if user["role"] == "teacher":    
 
-            if not user["parent_phone"]:
-                return redirect(
-                    url_for("parent_contact")
-                )
+        return redirect(    
+            url_for(    
+                "teacher_dashboard"    
+            )    
+        )    
 
-            return redirect(
-                url_for("dashboard")
-            )
+    return redirect(    
+        url_for("dashboard")    
+    )    
 
-        flash(
-            "Invalid email or password.",
-            "danger"
-        )
+flash(    
+    "Incorrect email or password."    
+)
 
-    return render_template("login.html")
+return render_template(
+"login.html"
+)
 
+=========================================================
 
-# ============================================================
-# LOGOUT
-# ============================================================
+LOGOUT
+
+=========================================================
 
 @app.route("/logout")
 def logout():
 
-    session.clear()
+session.clear()
 
-    flash(
-        "You have been logged out.",
-        "success"
-    )
+return redirect(
+url_for("index")
+)
 
-    return redirect(
-        url_for("index")
-    )
+=========================================================
 
+STUDENT DASHBOARD
 
-# ============================================================
-# STUDENT DASHBOARD
-# ============================================================
+=========================================================
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
 
-    # Keep the student dashboard self-contained so students can always
-    # browse subjects, enrol, pay, and open approved courses even if the
-    # existing dashboard.html template does not contain course cards.
-    db = get_db()
+courses = db().execute(
+"""
+SELECT
+c.*,
+e.status
+FROM courses c
+JOIN enrollments e
+ON e.course_id=c.id
+WHERE e.user_id=?
+ORDER BY c.id
+""",
+(
+g.user["id"],
+),
+).fetchall()
 
-    enrollments = db.execute(
-        """
-        SELECT e.*, c.title, c.description
-        FROM enrollments e
-        JOIN courses c ON c.id=e.course_id
-        WHERE e.user_id=?
-        ORDER BY e.id DESC
-        """,
-        (g.user["id"],)
-    ).fetchall()
+return render_template(
+"dashboard.html",
+courses=courses,
+)
 
-    courses = db.execute(
-        """
-        SELECT *
-        FROM courses
-        ORDER BY id
-        """
-    ).fetchall()
+=========================================================
 
-    activity = db.execute(
-        """
-        SELECT *
-        FROM student_activity
-        WHERE user_id=?
-        """,
-        (g.user["id"],)
-    ).fetchone()
+COURSE PAGE
 
-    notifications = db.execute(
-        """
-        SELECT *
-        FROM notifications
-        WHERE user_id=?
-        ORDER BY id DESC
-        LIMIT 10
-        """,
-        (g.user["id"],)
-    ).fetchall()
+=========================================================
 
-    unread_notifications = get_unread_notification_count()
-
-    # Build a simple status map for every course.
-    status_map = {}
-    for course_row in courses:
-        enrollment = db.execute(
-            """
-            SELECT status
-            FROM enrollments
-            WHERE user_id=? AND course_id=?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (g.user["id"], course_row["id"])
-        ).fetchone()
-        status_map[course_row["id"]] = enrollment["status"] if enrollment else None
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Student Dashboard - Eagle Vision Online Academy</title>
-            <style>
-                *{box-sizing:border-box}
-                body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
-                .top{background:#102a56;color:white;padding:18px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-                .top h1{margin:0;font-size:21px}
-                .top a{color:white;text-decoration:none;margin-left:12px;font-weight:bold}
-                .wrap{max-width:1050px;margin:auto;padding:20px}
-                .welcome{background:white;border-radius:16px;padding:22px;margin-bottom:20px;box-shadow:0 3px 15px rgba(0,0,0,.07)}
-                .welcome h2{margin:0 0 8px;color:#102a56}
-                .notice{background:#fff8d9;border-left:5px solid #f5c400;padding:14px;border-radius:10px;margin:15px 0}
-                .section-title{color:#102a56;margin:25px 0 12px}
-                .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
-                .card{background:white;border-radius:16px;padding:20px;box-shadow:0 3px 15px rgba(0,0,0,.07)}
-                .card h3{margin-top:0;color:#102a56}
-                .price{font-size:20px;font-weight:bold;margin:10px 0;color:#111}
-                .desc{color:#5c667a;line-height:1.5;min-height:48px}
-                .btn{display:inline-block;border:0;border-radius:9px;padding:12px 15px;text-decoration:none;font-weight:bold;cursor:pointer;margin-top:8px}
-                .primary{background:#f5c400;color:#111}
-                .blue{background:#102a56;color:white}
-                .green{background:#198754;color:white}
-                .gray{background:#e8edf5;color:#333}
-                form{display:inline}
-                .small{font-size:13px;color:#667085}
-                .badge{display:inline-block;padding:6px 9px;border-radius:20px;font-size:12px;font-weight:bold;background:#eef2f7;margin-bottom:8px}
-                .approved{background:#dff6e8;color:#146c3e}
-                .pending{background:#fff2c2;color:#775d00}
-                .empty{background:white;padding:18px;border-radius:12px}
-                .notification{padding:12px;border-bottom:1px solid #eee}
-                @media(max-width:600px){.wrap{padding:13px}.top a{margin-left:5px;font-size:13px}}
-            </style>
-        </head>
-        <body>
-            <div class="top">
-                <h1>Eagle Vision Online Academy</h1>
-                <div>
-                    <a href="{{ url_for('dashboard') }}">Dashboard</a>
-                    <a href="{{ url_for('notifications') }}">Notifications{% if unread_notifications %} ({{ unread_notifications }}){% endif %}</a>
-                    <a href="{{ url_for('report_admin') }}">Report to Admin</a>
-                    <a href="{{ url_for('logout') }}">Logout</a>
-                </div>
-            </div>
-
-            <div class="wrap">
-                <div class="welcome">
-                    <h2>Welcome, {{ g.user['full_name'] }} 👋</h2>
-                    <p>Learn. Revise. Achieve.</p>
-                    <div class="notice">
-                        <strong>How learning works:</strong>
-                        Choose a subject below → enrol → submit payment → wait for admin approval → open your course → study lessons → complete activities and quizzes.
-                    </div>
-                    {% if not g.user['parent_phone'] %}
-                        <a class="btn primary" href="{{ url_for('parent_contact') }}">Add Parent / Guardian Contact</a>
-                    {% endif %}
-                </div>
-
-                <h2 class="section-title">📚 Browse Courses & Subjects</h2>
-                <div class="grid">
-                {% for c in courses %}
-                    {% set status = status_map[c['id']] %}
-                    <div class="card">
-                        <span class="badge">Course</span>
-                        <h3>{{ c['title'] }}</h3>
-                        <div class="price">${{ '%.2f'|format(c['price']|float) }}</div>
-                        <p class="desc">{{ c['description'] or 'Study lessons, practise and prepare for examinations.' }}</p>
-
-                        {% if status == 'approved' %}
-                            <span class="badge approved">✓ Enrolled & Active</span><br>
-                            <a class="btn green" href="{{ url_for('course', course_id=c['id']) }}">Start Learning</a>
-                        {% elif status == 'pending' %}
-                            <span class="badge pending">⏳ Enrolment Pending</span><br>
-                            <a class="btn primary" href="{{ url_for('pay', course_id=c['id']) }}">Pay / Submit Payment</a>
-                        {% else %}
-                            <form method="post" action="{{ url_for('enrol', course_id=c['id']) }}">
-                                <button class="btn blue" type="submit">Enrol Now</button>
-                            </form>
-                        {% endif %}
-                    </div>
-                {% endfor %}
-                </div>
-
-                <h2 class="section-title">🎓 My Courses</h2>
-                {% if enrollments %}
-                    <div class="grid">
-                    {% for e in enrollments %}
-                        <div class="card">
-                            <h3>{{ e['title'] }}</h3>
-                            <p>{{ e['description'] or '' }}</p>
-                            {% if e['status'] == 'approved' %}
-                                <span class="badge approved">Active</span><br>
-                                <a class="btn green" href="{{ url_for('course', course_id=e['course_id']) }}">Open Course</a>
-                            {% else %}
-                                <span class="badge pending">{{ e['status']|capitalize }}</span><br>
-                                <a class="btn primary" href="{{ url_for('pay', course_id=e['course_id']) }}">Pay / Submit Payment</a>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="empty">You have not enrolled in a course yet. Choose a subject above to get started.</div>
-                {% endif %}
-
-                <h2 class="section-title">🔔 Recent Notifications</h2>
-                <div class="card">
-                    {% if notifications %}
-                        {% for n in notifications %}
-                            <div class="notification">
-                                <strong>{{ n['title'] }}</strong><br>
-                                <span class="small">{{ n['message'] }}</span>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="small">No notifications yet.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </body>
-        </html>
-        """,
-        courses=courses,
-        enrollments=enrollments,
-        activity=activity,
-        notifications=notifications,
-        unread_notifications=unread_notifications,
-        status_map=status_map
-    )
-
-
-# ============================================================
-# COURSE
-# ============================================================
-
-@app.route("/course/<int:course_id>")
+@app.route(
+"/course/int:course_id"
+)
 @login_required
 def course(course_id):
 
-    db = get_db()
+c = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not c:
 
-    if not course_row:
-        flash("Course not found.", "danger")
-        return redirect(url_for("dashboard"))
+return (    
+    "Course not found",    
+    404,    
+)
 
-    if not student_has_access(course_id):
+enrollment = db().execute(
+"""
+SELECT *
+FROM enrollments
+WHERE user_id=?
+AND course_id=?
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchone()
 
-        flash(
-            "You do not currently have access to this course.",
-            "warning"
-        )
+lessons = db().execute(
+"""
+SELECT
+l.*,
+COALESCE(
+p.completed,
+0
+) AS completed
+FROM lessons l
+LEFT JOIN lesson_progress p
+ON p.lesson_id=l.id
+AND p.user_id=?
+WHERE l.course_id=?
+ORDER BY l.position
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchall()
 
-        return redirect(
-            url_for("dashboard")
-        )
+quizzes = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE course_id=?
+""",
+(
+course_id,
+),
+).fetchall()
 
-    lessons = db.execute(
-        """
-        SELECT
-            l.*,
-            COALESCE(lp.completed,0) AS completed
-        FROM lessons l
-        LEFT JOIN lesson_progress lp
-            ON lp.lesson_id=l.id
-            AND lp.user_id=?
-        WHERE l.course_id=?
-        ORDER BY l.position
-        """,
-        (
-            g.user["id"],
-            course_id
-        )
-    ).fetchall()
+return render_template(
+"course.html",
+course=c,
+enrollment=enrollment,
+lessons=lessons,
+quizzes=quizzes,
+)
 
-    activities_count = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM lesson_activities la
-        JOIN lessons l
-            ON l.id=la.lesson_id
-        WHERE l.course_id=?
-        """,
-        (course_id,)
-    ).fetchone()["c"]
+=========================================================
 
-    return render_template(
-        "course.html",
-        course=course_row,
-        lessons=lessons,
-        activities_count=activities_count
-    )
+ENROL
 
-
-# ============================================================
-# ENROL
-# ============================================================
+=========================================================
 
 @app.route(
-    "/enrol/<int:course_id>",
-    methods=["POST"]
+"/enrol/int:course_id",
+methods=["POST"],
 )
 @login_required
 def enrol(course_id):
 
-    db = get_db()
+c = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not c:
 
-    if not course_row:
-        flash("Course not found.", "danger")
-        return redirect(url_for("dashboard"))
+return (    
+    "Course not found",    
+    404,    
+)
 
-    existing = db.execute(
-        """
-        SELECT *
-        FROM enrollments
-        WHERE user_id=?
-        AND course_id=?
-        """,
-        (
-            g.user["id"],
-            course_id
-        )
-    ).fetchone()
+try:
 
-    if existing:
+db().execute(    
+    """    
+    INSERT INTO enrollments    
+    (    
+        user_id,    
+        course_id,    
+        status,    
+        created_at    
+    )    
+    VALUES (?, ?, ?, ?)    
+    """,    
+    (    
+        g.user["id"],    
+        course_id,    
+        "pending",    
+        datetime.utcnow().isoformat(),    
+    ),    
+)    
 
-        flash(
-            "You have already requested this course.",
-            "info"
-        )
+db().commit()    
 
-        return redirect(
-            url_for(
-                "course",
-                course_id=course_id
-            )
-        )
+flash(    
+    "Enrolment request created. "    
+    "Submit payment to activate your course."    
+)
 
-    db.execute(
-        """
-        INSERT INTO enrollments(
-            user_id,
-            course_id,
-            status,
-            created_at
-        )
-        VALUES(?,?,?,?,?)
-        """,
-        (
-            g.user["id"],
-            course_id,
-            "pending",
-            now()
-        )
-    )
+except sqlite3.IntegrityError:
 
-    db.commit()
+flash(    
+    "You already requested this course."    
+)
 
-    notify_admins(
-        "New course enrolment",
-        f"{g.user['full_name']} requested enrolment in {course_row['title']}.",
-        "enrolment"
-    )
+return redirect(
+url_for(
+"course",
+course_id=course_id,
+)
+)
 
-    create_notification(
-        g.user["id"],
-        "Enrolment request received",
-        f"Your enrolment request for {course_row['title']} has been received.",
-        "success"
-    )
+=========================================================
 
-    flash(
-        "Enrolment request submitted.",
-        "success"
-    )
+LESSON
 
-    return redirect(
-        url_for("dashboard")
-    )
+=========================================================
 
-
-# ============================================================
-# LESSON
-# ============================================================
-
-@app.route("/lesson/<int:lesson_id>")
+@app.route(
+"/lesson/int:lesson_id"
+)
 @login_required
 def lesson(lesson_id):
 
-    db = get_db()
+l = db().execute(
+"""
+SELECT *
+FROM lessons
+WHERE id=?
+""",
+(
+lesson_id,
+),
+).fetchone()
 
-    lesson_row = db.execute(
-        """
-        SELECT
-            l.*,
-            c.title AS course_title,
-            c.id AS course_id
-        FROM lessons l
-        JOIN courses c
-            ON c.id=l.course_id
-        WHERE l.id=?
-        """,
-        (lesson_id,)
-    ).fetchone()
+if not l:
 
-    if not lesson_row:
-        flash("Lesson not found.", "danger")
-        return redirect(url_for("dashboard"))
+return (    
+    "Lesson not found",    
+    404,    
+)
 
-    if not student_has_access(
-        lesson_row["course_id"]
-    ):
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+l["course_id"],
+),
+).fetchone()
 
-        flash(
-            "You do not have access to this lesson.",
-            "warning"
-        )
+if not course:
 
-        return redirect(
-            url_for(
-                "course",
-                course_id=lesson_row["course_id"]
-            )
-        )
+return (    
+    "Course not found",    
+    404,    
+)
 
-    touch_student_activity(
-        course_id=lesson_row["course_id"],
-        viewed=True
-    )
+enrollment = db().execute(
+"""
+SELECT *
+FROM enrollments
+WHERE user_id=?
+AND course_id=?
+""",
+(
+g.user["id"],
+l["course_id"],
+),
+).fetchone()
 
-    activities = db.execute(
-        """
-        SELECT *
-        FROM lesson_activities
-        WHERE lesson_id=?
-        ORDER BY id
-        """,
-        (lesson_id,)
-    ).fetchall()
+return render_template(
+"lesson.html",
+lesson=l,
+course=course,
+enrollment=enrollment,
+)
 
-    progress = db.execute(
-        """
-        SELECT *
-        FROM lesson_progress
-        WHERE user_id=?
-        AND lesson_id=?
-        """,
-        (
-            g.user["id"],
-            lesson_id
-        )
-    ).fetchone()
+=========================================================
 
-    return render_template(
-        "lesson.html",
-        lesson=lesson_row,
-        progress=progress,
-        activities=activities
-    )
+COMPLETE LESSON
 
-
-# ============================================================
-# COMPLETE LESSON
-# ============================================================
+=========================================================
 
 @app.route(
-    "/lesson/<int:lesson_id>/complete",
-    methods=["POST"]
+"/lesson/int:lesson_id/complete",
+methods=["POST"],
 )
 @login_required
 def complete_lesson(lesson_id):
 
-    db = get_db()
+l = db().execute(
+"""
+SELECT *
+FROM lessons
+WHERE id=?
+""",
+(
+lesson_id,
+),
+).fetchone()
 
-    lesson_row = db.execute(
-        """
-        SELECT *
-        FROM lessons
-        WHERE id=?
-        """,
-        (lesson_id,)
-    ).fetchone()
+if not l:
 
-    if not lesson_row:
-        flash("Lesson not found.", "danger")
-        return redirect(url_for("dashboard"))
-
-    if not student_has_access(
-        lesson_row["course_id"]
-    ):
-
-        flash(
-            "You do not have access to this lesson.",
-            "danger"
-        )
-
-        return redirect(
-            url_for(
-                "dashboard"
-            )
-        )
-
-    existing = db.execute(
-        """
-        SELECT *
-        FROM lesson_progress
-        WHERE user_id=?
-        AND lesson_id=?
-        """,
-        (
-            g.user["id"],
-            lesson_id
-        )
-    ).fetchone()
-
-    if existing:
-
-        db.execute(
-            """
-            UPDATE lesson_progress
-            SET completed=1,
-                completed_at=?
-            WHERE id=?
-            """,
-            (
-                now(),
-                existing["id"]
-            )
-        )
-
-    else:
-
-        db.execute(
-            """
-            INSERT INTO lesson_progress(
-                user_id,
-                lesson_id,
-                completed,
-                completed_at
-            )
-            VALUES(?,?,1,?)
-            """,
-            (
-                g.user["id"],
-                lesson_id,
-                now()
-            )
-        )
-
-    db.commit()
-
-    touch_student_activity(
-        course_id=lesson_row["course_id"],
-        completed=True
-    )
-
-    create_notification(
-        g.user["id"],
-        "Lesson completed",
-        f"You completed: {lesson_row['title']}. Keep going!",
-        "success"
-    )
-
-    flash(
-        "Lesson marked as completed.",
-        "success"
-    )
-
-    return redirect(
-        url_for(
-            "course",
-            course_id=lesson_row["course_id"]
-        )
-    )
-
-
-# ============================================================
-# INTERACTIVE LESSON ACTIVITY
-# ============================================================
-
-@app.route(
-    "/lesson/<int:lesson_id>/activity",
-    methods=["GET", "POST"]
+return (    
+    "Lesson not found",    
+    404,    
 )
-@login_required
-def lesson_activity(lesson_id):
 
-    db = get_db()
+active = db().execute(
+"""
+SELECT 1
+FROM enrollments
+WHERE user_id=?
+AND course_id=?
+AND status='active'
+""",
+(
+g.user["id"],
+l["course_id"],
+),
+).fetchone()
 
-    lesson_row = db.execute(
-        """
-        SELECT
-            l.*,
-            c.title AS course_title
-        FROM lessons l
-        JOIN courses c
-            ON c.id=l.course_id
-        WHERE l.id=?
-        """,
-        (lesson_id,)
-    ).fetchone()
+if not active:
 
-    if not lesson_row:
-        flash("Lesson not found.", "danger")
-        return redirect(url_for("dashboard"))
+flash(    
+    "Your course must be activated "    
+    "before completing lessons."    
+)    
 
-    if not student_has_access(
-        lesson_row["course_id"]
-    ):
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=l["course_id"],    
+    )    
+)
 
-        flash(
-            "You do not have access to this activity.",
-            "danger"
-        )
+db().execute(
+"""
+INSERT INTO lesson_progress
+(
+user_id,
+lesson_id,
+completed,
+completed_at
+)
+VALUES (?, ?, 1, ?)
+ON CONFLICT(
+user_id,
+lesson_id
+)
+DO UPDATE SET
+completed=1,
+completed_at=excluded.completed_at
+""",
+(
+g.user["id"],
+lesson_id,
+datetime.utcnow().isoformat(),
+),
+)
 
-        return redirect(
-            url_for(
-                "dashboard"
-            )
-        )
+db().commit()
 
-    activities = db.execute(
-        """
-        SELECT *
-        FROM lesson_activities
-        WHERE lesson_id=?
-        ORDER BY id
-        """,
-        (lesson_id,)
-    ).fetchall()
+flash(
+"Lesson marked complete."
+)
 
-    if not activities:
+return redirect(
+url_for(
+"course",
+course_id=l["course_id"],
+)
+)
 
-        flash(
-            "There is no activity for this lesson yet.",
-            "info"
-        )
+=========================================================
 
-        return redirect(
-            url_for(
-                "lesson",
-                lesson_id=lesson_id
-            )
-        )
+QUIZ
 
-    result_message = None
-
-    if request.method == "POST":
-
-        score = 0
-        attempted = 0
-
-        for activity in activities:
-
-            selected = request.form.get(
-                f"activity_{activity['id']}"
-            )
-
-            if not selected:
-                continue
-
-            attempted += 1
-
-            correct = (
-                selected.upper()
-                == activity["answer"].upper()
-            )
-
-            if correct:
-                score += 1
-
-            db.execute(
-                """
-                INSERT INTO activity_attempts(
-                    user_id,
-                    activity_id,
-                    answer,
-                    correct,
-                    attempted_at
-                )
-                VALUES(?,?,?,?,?)
-                """,
-                (
-                    g.user["id"],
-                    activity["id"],
-                    selected,
-                    1 if correct else 0,
-                    now()
-                )
-            )
-
-        db.commit()
-
-        if attempted:
-
-            touch_student_activity(
-                course_id=lesson_row["course_id"],
-                activity=True
-            )
-
-            result_message = (
-                f"You scored {score} out of "
-                f"{attempted}."
-            )
-
-            create_notification(
-                g.user["id"],
-                "Lesson activity completed",
-                result_message,
-                "success" if score == attempted else "info"
-            )
-
-        else:
-
-            result_message = (
-                "Please answer at least one question."
-            )
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Lesson Activity</title>
-
-            <style>
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f3f6fb;
-                    margin:0;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:800px;
-                    margin:auto;
-                }
-
-                .header{
-                    background:#102a56;
-                    color:white;
-                    padding:25px;
-                    border-radius:15px;
-                    margin-bottom:20px;
-                }
-
-                .question{
-                    background:white;
-                    padding:20px;
-                    margin-bottom:15px;
-                    border-radius:12px;
-                    box-shadow:0 3px 12px rgba(0,0,0,.06);
-                }
-
-                label{
-                    display:block;
-                    padding:10px;
-                    margin:7px 0;
-                    background:#f4f6f9;
-                    border-radius:8px;
-                    cursor:pointer;
-                }
-
-                button{
-                    width:100%;
-                    padding:15px;
-                    background:#f5c400;
-                    border:0;
-                    border-radius:10px;
-                    font-weight:bold;
-                    font-size:16px;
-                }
-
-                .result{
-                    background:#e8f8ed;
-                    padding:15px;
-                    border-radius:10px;
-                    margin-bottom:20px;
-                }
-
-                a{
-                    display:inline-block;
-                    margin-top:20px;
-                    color:#102a56;
-                    font-weight:bold;
-                }
-            </style>
-        </head>
-
-        <body>
-
-        <div class="container">
-
-            <div class="header">
-                <h1>Interactive Lesson Activity</h1>
-                <p>
-                    {{ lesson["course_title"] }}
-                </p>
-                <strong>
-                    {{ lesson["title"] }}
-                </strong>
-            </div>
-
-            {% if result_message %}
-                <div class="result">
-                    <strong>{{ result_message }}</strong>
-                </div>
-            {% endif %}
-
-            <form method="post">
-
-                {% for activity in activities %}
-
-                    <div class="question">
-
-                        <h3>
-                            {{ loop.index }}.
-                            {{ activity["question"] }}
-                        </h3>
-
-                        <label>
-                            <input
-                                type="radio"
-                                name="activity_{{ activity['id'] }}"
-                                value="A"
-                            >
-                            A. {{ activity["option_a"] }}
-                        </label>
-
-                        <label>
-                            <input
-                                type="radio"
-                                name="activity_{{ activity['id'] }}"
-                                value="B"
-                            >
-                            B. {{ activity["option_b"] }}
-                        </label>
-
-                        <label>
-                            <input
-                                type="radio"
-                                name="activity_{{ activity['id'] }}"
-                                value="C"
-                            >
-                            C. {{ activity["option_c"] }}
-                        </label>
-
-                        <label>
-                            <input
-                                type="radio"
-                                name="activity_{{ activity['id'] }}"
-                                value="D"
-                            >
-                            D. {{ activity["option_d"] }}
-                        </label>
-
-                    </div>
-
-                {% endfor %}
-
-                <button type="submit">
-                    Submit Activity
-                </button>
-
-            </form>
-
-            <a href="{{ url_for(
-                'lesson',
-                lesson_id=lesson['id']
-            ) }}">
-                ← Back to Lesson
-            </a>
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        lesson=lesson_row,
-        activities=activities,
-        result_message=result_message
-    )
-
-
-# ============================================================
-# QUIZ
-# ============================================================
+=========================================================
 
 @app.route(
-    "/quiz/<int:course_id>",
-    methods=["GET", "POST"]
+"/quiz/int:course_id",
+methods=["GET", "POST"],
 )
 @login_required
 def quiz(course_id):
 
-    db = get_db()
+active = db().execute(
+"""
+SELECT 1
+FROM enrollments
+WHERE user_id=?
+AND course_id=?
+AND status='active'
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not active:
 
-    if not course_row:
-        flash("Course not found.", "danger")
-        return redirect(url_for("dashboard"))
+flash(    
+    "Activate the course to take its quiz."    
+)    
 
-    if not student_has_access(course_id):
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
 
-        flash(
-            "You do not have access to this quiz.",
-            "danger"
-        )
+questions = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE course_id=?
+ORDER BY id
+""",
+(
+course_id,
+),
+).fetchall()
 
-        return redirect(
-            url_for("dashboard")
-        )
+if request.method == "POST":
 
-    questions = db.execute(
-        """
-        SELECT *
-        FROM quizzes
-        WHERE course_id=?
-        ORDER BY id
-        """,
-        (course_id,)
-    ).fetchall()
+score = 0    
 
-    score = None
+for q in questions:    
 
-    if request.method == "POST":
+    selected = request.form.get(    
+        f"q{q['id']}"    
+    )    
 
-        score = 0
+    if selected == q["answer"]:    
+        score += 1    
 
-        for question in questions:
+if questions:    
 
-            answer = request.form.get(
-                f"question_{question['id']}"
-            )
+    db().execute(    
+        """    
+        INSERT INTO quiz_attempts    
+        (    
+            user_id,    
+            quiz_id,    
+            score,    
+            attempted_at    
+        )    
+        VALUES (?, ?, ?, ?)    
+        """,    
+        (    
+            g.user["id"],    
+            questions[0]["id"],    
+            score,    
+            datetime.utcnow().isoformat(),    
+        ),    
+    )    
 
-            if not answer:
-                continue
+    db().commit()    
 
-            correct = (
-                answer.upper()
-                == question["answer"].upper()
-            )
+flash(    
+    f"Quiz submitted: "    
+    f"{score}/{len(questions)}"    
+)    
 
-            if correct:
-                score += 1
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
 
-            db.execute(
-                """
-                INSERT INTO quiz_attempts(
-                    user_id,
-                    quiz_id,
-                    answer,
-                    correct,
-                    attempted_at
-                )
-                VALUES(?,?,?,?,?)
-                """,
-                (
-                    g.user["id"],
-                    question["id"],
-                    answer,
-                    1 if correct else 0,
-                    now()
-                )
-            )
+return render_template(
+"quiz.html",
+questions=questions,
+course_id=course_id,
+)
 
-        db.commit()
+=========================================================
 
-        touch_student_activity(
-            course_id=course_id,
-            quiz=True
-        )
+PAYMENT
 
-        create_notification(
-            g.user["id"],
-            "Quiz submitted",
-            f"You scored {score} out of {len(questions)}.",
-            "success"
-        )
-
-        flash(
-            f"Quiz submitted. Score: {score}/{len(questions)}",
-            "success"
-        )
-
-    return render_template(
-        "quiz.html",
-        course=course_row,
-        questions=questions,
-        score=score
-    )
-
-
-# ============================================================
-# PAYMENT
-# ============================================================
+=========================================================
 
 @app.route(
-    "/pay/<int:course_id>",
-    methods=["GET", "POST"]
+"/pay/int:course_id",
+methods=["GET", "POST"],
 )
 @login_required
 def pay(course_id):
 
-    db = get_db()
+c = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not c:
 
-    if not course_row:
+return (    
+    "Course not found",    
+    404,    
+)
 
-        flash(
-            "Course not found.",
-            "danger"
-        )
+if request.method == "POST":
 
-        return redirect(
-            url_for("dashboard")
-        )
+method = request.form[    
+    "method"    
+]    
 
-    if request.method == "POST":
+reference = request.form[    
+    "reference"    
+].strip()    
 
-        amount = request.form.get(
-            "amount",
-            "0"
-        ).strip()
+db().execute(    
+    """    
+    INSERT INTO payments    
+    (    
+        user_id,    
+        course_id,    
+        method,    
+        reference,    
+        status,    
+        created_at    
+    )    
+    VALUES (?, ?, ?, ?, ?, ?)    
+    """,    
+    (    
+        g.user["id"],    
+        course_id,    
+        method,    
+        reference,    
+        "pending",    
+        datetime.utcnow().isoformat(),    
+    ),    
+)    
 
-        reference = request.form.get(
-            "reference",
-            ""
-        ).strip()
+db().commit()    
 
-        try:
-            amount_value = float(amount)
-        except ValueError:
-            amount_value = 0
+flash(    
+    "Payment details submitted. "    
+    "Your course will be activated after verification."    
+)    
 
-        if amount_value <= 0:
+return redirect(    
+    url_for("dashboard")    
+)
 
-            flash(
-                "Please enter a valid payment amount.",
-                "danger"
-            )
+return render_template(
+"payment.html",
+course=c,
+)
 
-            return render_template(
-                "payment.html",
-                course=course_row
-            )
+=========================================================
 
-        db.execute(
-            """
-            INSERT INTO payments(
-                user_id,
-                course_id,
-                amount,
-                reference,
-                status,
-                created_at
-            )
-            VALUES(?,?,?,?,?,?)
-            """,
-            (
-                g.user["id"],
-                course_id,
-                amount_value,
-                reference,
-                "pending",
-                now()
-            )
-        )
+CERTIFICATE
 
-        db.commit()
-
-        notify_admins(
-            "New payment submitted",
-            f"{g.user['full_name']} submitted a payment for {course_row['title']}.",
-            "payment"
-        )
-
-        create_notification(
-            g.user["id"],
-            "Payment submitted",
-            f"Your payment for {course_row['title']} is waiting for admin approval.",
-            "payment"
-        )
-
-        flash(
-            "Payment submitted successfully.",
-            "success"
-        )
-
-        return redirect(
-            url_for("dashboard")
-        )
-
-    return render_template(
-        "payment.html",
-        course=course_row
-    )
-
-
-# ============================================================
-# CERTIFICATE
-# ============================================================
+=========================================================
 
 @app.route(
-    "/certificate/<int:course_id>"
+"/certificate/int:course_id"
 )
 @login_required
 def certificate(course_id):
 
-    db = get_db()
+c = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not c:
 
-    if not course_row:
-        return "Course not found", 404
-
-    lessons = db.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM lessons
-        WHERE course_id=?
-        """,
-        (course_id,)
-    ).fetchone()["total"]
-
-    completed = db.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM lesson_progress lp
-        JOIN lessons l
-            ON l.id=lp.lesson_id
-        WHERE lp.user_id=?
-        AND l.course_id=?
-        AND lp.completed=1
-        """,
-        (
-            g.user["id"],
-            course_id
-        )
-    ).fetchone()["total"]
-
-    if lessons == 0 or completed < lessons:
-
-        return (
-            "Certificate is available after completing "
-            "all lessons.",
-            403
-        )
-
-    filename = (
-        f"certificate_{g.user['id']}_{course_id}.pdf"
-    )
-
-    filepath = os.path.join(
-        CERT_DIR,
-        filename
-    )
-
-    pdf = canvas.Canvas(
-        filepath,
-        pagesize=A4
-    )
-
-    width, height = A4
-
-    pdf.setFont(
-        "Helvetica-Bold",
-        28
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 150,
-        "EAGLE VISION ONLINE ACADEMY"
-    )
-
-    pdf.setFont(
-        "Helvetica-Bold",
-        22
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 220,
-        "CERTIFICATE OF COMPLETION"
-    )
-
-    pdf.setFont(
-        "Helvetica",
-        16
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 290,
-        "This certificate is proudly presented to"
-    )
-
-    pdf.setFont(
-        "Helvetica-Bold",
-        24
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 340,
-        g.user["full_name"]
-    )
-
-    pdf.setFont(
-        "Helvetica",
-        16
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 400,
-        "for successfully completing"
-    )
-
-    pdf.setFont(
-        "Helvetica-Bold",
-        20
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        height - 440,
-        course_row["title"]
-    )
-
-    pdf.setFont(
-        "Helvetica",
-        12
-    )
-
-    pdf.drawCentredString(
-        width / 2,
-        100,
-        "Learn. Revise. Achieve."
-    )
-
-    pdf.save()
-
-    return Response(
-        open(filepath, "rb").read(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition":
-            f"inline; filename={filename}"
-        }
-    )
-
-
-@app.route(
-    "/my-certificate/<int:course_id>"
+return (    
+    "Course not found",    
+    404,    
 )
-@login_required
-def my_certificate(course_id):
 
-    return redirect(
-        url_for(
-            "certificate",
-            course_id=course_id
-        )
-    )
+total = db().execute(
+"""
+SELECT COUNT(*)
+FROM lessons
+WHERE course_id=?
+""",
+(
+course_id,
+),
+).fetchone()[0]
 
+done = db().execute(
+"""
+SELECT COUNT(*)
+FROM lesson_progress p
+JOIN lessons l
+ON l.id=p.lesson_id
+WHERE p.user_id=?
+AND l.course_id=?
+AND p.completed=1
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchone()[0]
 
-# ============================================================
-# ADMIN DASHBOARD
-# ============================================================
+if not total or done < total:
+
+flash(    
+    "Complete all lessons "    
+    "to unlock your certificate."    
+)    
+
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
+
+filename = os.path.join(
+CERT_DIR,
+f"certificate_{g.user['id']}_{course_id}.pdf",
+)
+
+cpdf = canvas.Canvas(
+filename,
+pagesize=A4,
+)
+
+width, height = A4
+
+cpdf.setStrokeColorRGB(
+0.04,
+0.14,
+0.30,
+)
+
+cpdf.rect(
+35,
+35,
+width - 70,
+height - 70,
+)
+
+cpdf.setFont(
+"Helvetica-Bold",
+25,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 120,
+"EAGLE VISION ONLINE ACADEMY",
+)
+
+cpdf.setFont(
+"Helvetica",
+13,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 150,
+"Learn. Revise. Achieve.",
+)
+
+cpdf.setFont(
+"Helvetica-Bold",
+18,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 230,
+"CERTIFICATE OF COMPLETION",
+)
+
+cpdf.setFont(
+"Helvetica",
+14,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 290,
+"This certificate is proudly presented to",
+)
+
+cpdf.setFont(
+"Helvetica-Bold",
+22,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 335,
+g.user["full_name"],
+)
+
+cpdf.setFont(
+"Helvetica",
+14,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 390,
+"for successfully completing",
+)
+
+cpdf.setFont(
+"Helvetica-Bold",
+18,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 430,
+c["title"],
+)
+
+cpdf.setFont(
+"Helvetica",
+11,
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 500,
+f"Date: {datetime.utcnow().date().isoformat()}",
+)
+
+cpdf.drawCentredString(
+width / 2,
+height - 525,
+f"Certificate ID: "
+f"EVA-{g.user['id']:04d}-{course_id:04d}",
+)
+
+cpdf.save()
+
+return send_file(
+filename,
+as_attachment=True,
+download_name=os.path.basename(
+filename
+),
+)
+
+=========================================================
+
+ADMIN DASHBOARD
+
+=========================================================
 
 @app.route("/admin")
 @admin_required
 def admin():
 
-    db = get_db()
+pending = db().execute(
+"""
+SELECT
+p.*,
+u.full_name,
+u.email,
+c.title
+FROM payments p
+JOIN users u
+ON u.id=p.user_id
+JOIN courses c
+ON c.id=p.course_id
+WHERE p.status='pending'
+ORDER BY p.id DESC
+"""
+).fetchall()
 
-    payments = db.execute(
-        """
-        SELECT
-            p.*,
-            u.full_name,
-            u.email,
-            c.title AS course_title
-        FROM payments p
-        JOIN users u ON u.id=p.user_id
-        JOIN courses c ON c.id=p.course_id
-        ORDER BY p.id DESC
-        """
-    ).fetchall()
+users = db().execute(
+"""
+SELECT
+id,
+full_name,
+email,
+phone,
+role,
+created_at
+FROM users
+ORDER BY id DESC
+"""
+).fetchall()
 
-    courses = db.execute(
-        """
-        SELECT *
-        FROM courses
-        ORDER BY id
-        """
-    ).fetchall()
+courses = db().execute(
+"""
+SELECT *
+FROM courses
+ORDER BY id
+"""
+).fetchall()
 
-    reports_count = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM student_reports
-        WHERE status='pending'
-        """
-    ).fetchone()["c"]
+lessons = db().execute(
+"""
+SELECT
+l.*,
+c.title AS course_title
+FROM lessons l
+JOIN courses c
+ON c.id=l.course_id
+ORDER BY c.id, l.position
+"""
+).fetchall()
 
-    students_count = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM users
-        WHERE role='student'
-        """
-    ).fetchone()["c"]
+return render_template(
+"admin.html",
+pending=pending,
+users=users,
+courses=courses,
+lessons=lessons,
+)
 
-    active_count = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM student_activity
-        WHERE last_active >= datetime('now','-7 days')
-        """
-    ).fetchone()["c"]
+=========================================================
 
-    inactive_count = max(students_count - active_count, 0)
+APPROVE PAYMENT
 
-    pending_payments = db.execute(
-        """
-        SELECT COUNT(*) AS c
-        FROM payments
-        WHERE status='pending'
-        """
-    ).fetchone()["c"]
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>Admin Dashboard - Eagle Vision Online Academy</title>
-            <style>
-                *{box-sizing:border-box}
-                body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
-                .top{background:#06264f;color:white;padding:18px 16px}
-                .top h1{margin:0 0 6px;font-size:22px}
-                .top p{margin:0;opacity:.9}
-                .wrap{max-width:1150px;margin:auto;padding:18px}
-                .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
-                .stat,.card{background:white;border-radius:15px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.06)}
-                .stat strong{display:block;font-size:30px;margin-top:6px}
-                .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:18px 0 25px}
-                .action{display:block;background:white;border-radius:15px;padding:18px;text-decoration:none;color:#102a56;border:2px solid #e5ebf4}
-                .action:hover{border-color:#f5c400}
-                .action b{display:block;font-size:18px;margin-bottom:7px}
-                .section{margin-top:25px}
-                table{width:100%;border-collapse:collapse;background:white;border-radius:14px;overflow:hidden}
-                th,td{padding:11px;border-bottom:1px solid #e6e9ef;text-align:left}
-                th{background:#102a56;color:white}
-                .approve{background:#f5c400;border:0;border-radius:8px;padding:8px 12px;font-weight:bold}
-                .back{color:white;text-decoration:none;margin-left:15px}
-                @media(max-width:650px){th,td{font-size:13px;padding:8px}.table-wrap{overflow-x:auto}.back{display:block;margin:12px 0 0}}
-            </style>
-        </head>
-        <body>
-            <div class="top">
-                <h1>🦅 Eagle Vision Online Academy — Admin Dashboard</h1>
-                <p>Manage students, participation, parents, payments, reports and courses.</p>
-                <a class="back" href="{{ url_for('logout') }}">Logout</a>
-            </div>
-
-            <div class="wrap">
-                <h2>Overview</h2>
-                <div class="grid">
-                    <div class="stat">👨‍🎓 Total Students<strong>{{ students_count }}</strong></div>
-                    <div class="stat">🟢 Active in Last 7 Days<strong>{{ active_count }}</strong></div>
-                    <div class="stat">⚠️ Need Follow-up<strong>{{ inactive_count }}</strong></div>
-                    <div class="stat">💳 Pending Payments<strong>{{ pending_payments }}</strong></div>
-                    <div class="stat">📢 Pending Reports<strong>{{ reports_count }}</strong></div>
-                </div>
-
-                <h2 class="section">Student Management</h2>
-                <div class="actions">
-                    <a class="action" href="{{ url_for('admin_students') }}"><b>👥 Track Students</b>View student accounts, activity and learning progress.</a>
-                    <a class="action" href="{{ url_for('admin_participation') }}"><b>📊 Participation Monitor</b>Find students who are inactive or not participating.</a>
-                    <a class="action" href="{{ url_for('admin_parent_contacts') }}"><b>📞 Parent Contacts</b>Call or WhatsApp parents and guardians.</a>
-                    <a class="action" href="{{ url_for('admin_reports') }}"><b>📢 Student Reports</b>Read and respond to reports sent directly to admin.</a>
-                </div>
-
-                <h2 class="section">Academy Management</h2>
-                <div class="actions">
-                    <a class="action" href="{{ url_for('admin_teachers') }}"><b>👨‍🏫 Teachers</b>Manage teachers and course assignments.</a>
-                    {% for c in courses %}
-                    <a class="action" href="{{ url_for('admin_quizzes', course_id=c['id']) }}"><b>📝 {{ c['title'] }}</b>Manage quizzes for this course.</a>
-                    {% endfor %}
-                </div>
-
-                <h2 class="section">💳 Payments</h2>
-                <div class="table-wrap">
-                <table>
-                    <tr><th>Student</th><th>Course</th><th>Amount</th><th>Status</th><th>Action</th></tr>
-                    {% for p in payments %}
-                    <tr>
-                        <td>{{ p['full_name'] }}</td>
-                        <td>{{ p['course_title'] }}</td>
-                        <td>${{ '%.2f'|format(p['amount']|float) }}</td>
-                        <td>{{ p['status'] }}</td>
-                        <td>
-                        {% if p['status'] == 'pending' %}
-                            <form method="post" action="{{ url_for('approve_payment', payment_id=p['id']) }}">
-                                <button class="approve" type="submit">Approve</button>
-                            </form>
-                        {% else %}✓{% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="5">No payments yet.</td></tr>
-                    {% endfor %}
-                </table>
-                </div>
-            </div>
-        </body>
-        </html>
-        """,
-        payments=payments,
-        courses=courses,
-        reports_count=reports_count,
-        students_count=students_count,
-        active_count=active_count,
-        inactive_count=inactive_count,
-        pending_payments=pending_payments
-    )
-
-
-# ============================================================
-# ADMIN PAYMENT APPROVAL
-# ============================================================
+=========================================================
 
 @app.route(
-    "/admin/payment/<int:payment_id>/approve",
-    methods=["POST"]
+"/admin/payment/int:payment_id/approve",
+methods=["POST"],
 )
 @admin_required
 def approve_payment(payment_id):
 
-    db = get_db()
+payment = db().execute(
+"""
+SELECT *
+FROM payments
+WHERE id=?
+""",
+(
+payment_id,
+),
+).fetchone()
 
-    payment = db.execute(
-        """
-        SELECT
-            p.*,
-            c.title AS course_title
-        FROM payments p
-        JOIN courses c
-            ON c.id=p.course_id
-        WHERE p.id=?
-        """,
-        (payment_id,)
-    ).fetchone()
+if payment:
 
-    if not payment:
+db().execute(    
+    """    
+    UPDATE payments    
+    SET status='approved'    
+    WHERE id=?    
+    """,    
+    (    
+        payment_id,    
+    ),    
+)    
 
-        flash(
-            "Payment not found.",
-            "danger"
-        )
+db().execute(    
+    """    
+    UPDATE enrollments    
+    SET status='active'    
+    WHERE user_id=?    
+      AND course_id=?    
+    """,    
+    (    
+        payment["user_id"],    
+        payment["course_id"],    
+    ),    
+)    
 
-        return redirect(
-            url_for("admin")
-        )
+db().commit()    
 
-    db.execute(
-        """
-        UPDATE payments
-        SET status='approved'
-        WHERE id=?
-        """,
-        (payment_id,)
-    )
+flash(    
+    "Payment approved and course activated."    
+)
 
-    enrollment = db.execute(
-        """
-        SELECT *
-        FROM enrollments
-        WHERE user_id=?
-        AND course_id=?
-        """,
-        (
-            payment["user_id"],
-            payment["course_id"]
-        )
-    ).fetchone()
+return redirect(
+url_for("admin")
+)
 
-    if enrollment:
+=========================================================
 
-        db.execute(
-            """
-            UPDATE enrollments
-            SET status='approved'
-            WHERE id=?
-            """,
-            (enrollment["id"],)
-        )
+ADD LESSON
 
-    else:
-
-        db.execute(
-            """
-            INSERT INTO enrollments(
-                user_id,
-                course_id,
-                status,
-                created_at
-            )
-            VALUES(?,?,?,?,?)
-            """,
-            (
-                payment["user_id"],
-                payment["course_id"],
-                "approved",
-                now()
-            )
-        )
-
-    db.commit()
-
-    create_notification(
-        payment["user_id"],
-        "Payment approved",
-        f"Your payment has been approved. You now have access to {payment['course_title']}.",
-        "success"
-    )
-
-    flash(
-        "Payment approved and course activated.",
-        "success"
-    )
-
-    return redirect(
-        url_for("admin")
-    )
-
-
-# ============================================================
-# ADMIN LESSON MANAGEMENT
-# ============================================================
+=========================================================
 
 @app.route(
-    "/admin/lesson/add",
-    methods=["GET", "POST"]
+"/admin/lesson/add",
+methods=["POST"],
 )
 @admin_required
 def add_lesson():
 
-    db = get_db()
+course_id = request.form.get(
+"course_id"
+)
 
-    courses = db.execute(
-        """
-        SELECT *
-        FROM courses
-        ORDER BY title
-        """
-    ).fetchall()
+title = request.form.get(
+"title",
+"",
+).strip()
 
-    if request.method == "POST":
+content = request.form.get(
+"content",
+"",
+).strip()
 
-        course_id = request.form.get(
-            "course_id"
-        )
+video_url = request.form.get(
+"video_url",
+"",
+).strip()
 
-        title = request.form.get(
-            "title",
-            ""
-        ).strip()
+position = request.form.get(
+"position",
+"1",
+)
 
-        content = request.form.get(
-            "content",
-            ""
-        ).strip()
+if (
+not course_id
+or not title
+or not content
+):
 
-        position = request.form.get(
-            "position",
-            "1"
-        )
+flash(    
+    "Course, lesson title and lesson notes are required."    
+)    
 
-        try:
-            position = int(position)
-        except ValueError:
-            position = 1
+return redirect(    
+    url_for("admin")    
+)
 
-        db.execute(
-            """
-            INSERT INTO lessons(
-                course_id,
-                title,
-                content,
-                position
-            )
-            VALUES(?,?,?,?)
-            """,
-            (
-                course_id,
-                title,
-                content,
-                position
-            )
-        )
+try:
 
-        db.commit()
+position = int(position)
 
-        flash(
-            "Lesson added successfully.",
-            "success"
-        )
+except ValueError:
 
-        return redirect(
-            url_for("admin")
-        )
+position = 1
 
-    return render_template(
-        "admin_quiz_form.html",
-        courses=courses
-    )
+db().execute(
+"""
+INSERT INTO lessons
+(
+course_id,
+title,
+content,
+video_url,
+position
+)
+VALUES (?, ?, ?, ?, ?)
+""",
+(
+course_id,
+title,
+content,
+video_url,
+position,
+),
+)
 
+db().commit()
+
+flash(
+"Lesson added successfully."
+)
+
+return redirect(
+url_for("admin")
+)
+
+=========================================================
+
+EDIT LESSON
+
+=========================================================
 
 @app.route(
-    "/admin/lesson/<int:lesson_id>/edit",
-    methods=["GET", "POST"]
+"/admin/lesson/int:lesson_id/edit",
+methods=["POST"],
 )
 @admin_required
 def edit_lesson(lesson_id):
 
-    db = get_db()
+title = request.form.get(
+"title",
+"",
+).strip()
 
-    lesson_row = db.execute(
-        """
-        SELECT *
-        FROM lessons
-        WHERE id=?
-        """,
-        (lesson_id,)
-    ).fetchone()
+content = request.form.get(
+"content",
+"",
+).strip()
 
-    if not lesson_row:
-        return "Lesson not found", 404
+video_url = request.form.get(
+"video_url",
+"",
+).strip()
 
-    if request.method == "POST":
+position = request.form.get(
+"position",
+"1",
+)
 
-        title = request.form.get(
-            "title",
-            ""
-        ).strip()
+if not title or not content:
 
-        content = request.form.get(
-            "content",
-            ""
-        ).strip()
+flash(    
+    "Lesson title and notes are required."    
+)    
 
-        position = request.form.get(
-            "position",
-            "1"
-        )
+return redirect(    
+    url_for("admin")    
+)
 
-        try:
-            position = int(position)
-        except ValueError:
-            position = lesson_row["position"]
+try:
 
-        db.execute(
-            """
-            UPDATE lessons
-            SET title=?,
-                content=?,
-                position=?
-            WHERE id=?
-            """,
-            (
-                title,
-                content,
-                position,
-                lesson_id
-            )
-        )
+position = int(position)
 
-        db.commit()
+except ValueError:
 
-        flash(
-            "Lesson updated.",
-            "success"
-        )
+position = 1
 
-        return redirect(
-            url_for("admin")
-        )
+db().execute(
+"""
+UPDATE lessons
+SET
+title=?,
+content=?,
+video_url=?,
+position=?
+WHERE id=?
+""",
+(
+title,
+content,
+video_url,
+position,
+lesson_id,
+),
+)
 
-    return render_template(
-        "admin_quiz_form.html",
-        lesson=lesson_row
-    )
+db().commit()
 
+flash(
+"Lesson updated successfully."
+)
+
+return redirect(
+url_for("admin")
+)
+
+=========================================================
+
+DELETE LESSON
+
+=========================================================
 
 @app.route(
-    "/admin/lesson/<int:lesson_id>/delete",
-    methods=["POST"]
+"/admin/lesson/int:lesson_id/delete",
+methods=["POST"],
 )
 @admin_required
 def delete_lesson(lesson_id):
 
-    db = get_db()
+db().execute(
+"""
+DELETE FROM lesson_progress
+WHERE lesson_id=?
+""",
+(
+lesson_id,
+),
+)
 
-    db.execute(
-        """
-        DELETE FROM lesson_activities
-        WHERE lesson_id=?
-        """,
-        (lesson_id,)
-    )
+db().execute(
+"""
+DELETE FROM lessons
+WHERE id=?
+""",
+(
+lesson_id,
+),
+)
 
-    db.execute(
-        """
-        DELETE FROM lesson_progress
-        WHERE lesson_id=?
-        """,
-        (lesson_id,)
-    )
+db().commit()
 
-    db.execute(
-        """
-        DELETE FROM lessons
-        WHERE id=?
-        """,
-        (lesson_id,)
-    )
+flash(
+"Lesson deleted successfully."
+)
 
-    db.commit()
+return redirect(
+url_for("admin")
+)
 
-    flash(
-        "Lesson deleted.",
-        "success"
-    )
+=========================================================
 
-    return redirect(
-        url_for("admin")
-    )
+TOGGLE COURSE
 
-
-# ============================================================
-# ADMIN COURSE TOGGLE
-# ============================================================
+=========================================================
 
 @app.route(
-    "/admin/course/<int:course_id>/toggle",
-    methods=["POST"]
+"/admin/course/int:course_id/toggle",
+methods=["POST"],
 )
 @admin_required
 def toggle_course(course_id):
 
-    db = get_db()
+db().execute(
+"""
+UPDATE courses
+SET active =
+CASE active
+WHEN 1 THEN 0
+ELSE 1
+END
+WHERE id=?
+""",
+(
+course_id,
+),
+)
 
-    db.execute(
-        """
-        UPDATE courses
-        SET active =
-            CASE
-                WHEN active=1 THEN 0
-                ELSE 1
-            END
-        WHERE id=?
-        """,
-        (course_id,)
-    )
+db().commit()
 
-    db.commit()
+return redirect(
+url_for("admin")
+)
 
-    flash(
-        "Course status updated.",
-        "success"
-    )
+=========================================================
 
-    return redirect(
-        url_for("admin")
-    )
+ADMIN QUIZ MANAGER
 
-
-# ============================================================
-# ADMIN QUIZZES
-# ============================================================
+=========================================================
 
 @app.route(
-    "/admin/quizzes/<int:course_id>"
+"/admin/quizzes/int:course_id"
 )
 @admin_required
-def admin_quizzes(course_id):
+def admin_quiz_manager(course_id):
 
-    db = get_db()
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not course:
 
-    questions = db.execute(
-        """
-        SELECT *
-        FROM quizzes
-        WHERE course_id=?
-        ORDER BY id
-        """,
-        (course_id,)
-    ).fetchall()
+flash(    
+    "Course not found."    
+)    
 
-    return render_template(
-        "admin_quizzes.html",
-        course=course_row,
-        questions=questions
-    )
+return redirect(    
+    url_for("admin")    
+)
 
+questions = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE course_id=?
+ORDER BY id
+""",
+(
+course_id,
+),
+).fetchall()
+
+return render_template(
+"admin_quizzes.html",
+course=course,
+questions=questions,
+)
+
+=========================================================
+
+ADD QUIZ QUESTION
+
+=========================================================
 
 @app.route(
-    "/admin/quizzes/<int:course_id>/add",
-    methods=["GET", "POST"]
+"/admin/quizzes/int:course_id/add",
+methods=["GET", "POST"],
 )
 @admin_required
-def add_quiz(course_id):
+def admin_quiz_add(course_id):
 
-    db = get_db()
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not course:
 
-    if request.method == "POST":
+flash(    
+    "Course not found."    
+)    
 
-        db.execute(
-            """
-            INSERT INTO quizzes(
-                course_id,
-                question,
-                option_a,
-                option_b,
-                option_c,
-                option_d,
-                answer
-            )
-            VALUES(?,?,?,?,?,?,?)
-            """,
-            (
-                course_id,
-                request.form.get("question", ""),
-                request.form.get("option_a", ""),
-                request.form.get("option_b", ""),
-                request.form.get("option_c", ""),
-                request.form.get("option_d", ""),
-                request.form.get("answer", "").upper(),
-            )
-        )
+return redirect(    
+    url_for("admin")    
+)
 
-        db.commit()
+if request.method == "POST":
 
-        flash(
-            "Quiz question added.",
-            "success"
-        )
+question = request.form.get(    
+    "question",    
+    "",    
+).strip()    
 
-        return redirect(
-            url_for(
-                "admin_quizzes",
-                course_id=course_id
-            )
-        )
+option_a = request.form.get(    
+    "option_a",    
+    "",    
+).strip()    
 
-    return render_template(
-        "admin_quiz_form.html",
-        course=course_row
-    )
+option_b = request.form.get(    
+    "option_b",    
+    "",    
+).strip()    
 
+option_c = request.form.get(    
+    "option_c",    
+    "",    
+).strip()    
+
+option_d = request.form.get(    
+    "option_d",    
+    "",    
+).strip()    
+
+answer = request.form.get(    
+    "answer",    
+    "",    
+).strip().upper()    
+
+if not all(    
+    [    
+        question,    
+        option_a,    
+        option_b,    
+        option_c,    
+        option_d,    
+        answer,    
+    ]    
+):    
+
+    flash(    
+        "Please complete every question field."    
+    )    
+
+    return redirect(    
+        url_for(    
+            "admin_quiz_add",    
+            course_id=course_id,    
+        )    
+    )    
+
+if answer not in [    
+    "A",    
+    "B",    
+    "C",    
+    "D",    
+]:    
+
+    flash(    
+        "Correct answer must be A, B, C or D."    
+    )    
+
+    return redirect(    
+        url_for(    
+            "admin_quiz_add",    
+            course_id=course_id,    
+        )    
+    )    
+
+db().execute(    
+    """    
+    INSERT INTO quizzes    
+    (    
+        course_id,    
+        question,    
+        option_a,    
+        option_b,    
+        option_c,    
+        option_d,    
+        answer    
+    )    
+    VALUES (?, ?, ?, ?, ?, ?, ?)    
+    """,    
+    (    
+        course_id,    
+        question,    
+        option_a,    
+        option_b,    
+        option_c,    
+        option_d,    
+        answer,    
+    ),    
+)    
+
+db().commit()    
+
+flash(    
+    "Quiz question added successfully."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_quiz_manager",    
+        course_id=course_id,    
+    )    
+)
+
+return render_template(
+"admin_quiz_form.html",
+course=course,
+question=None,
+)
+
+=========================================================
+
+EDIT QUIZ QUESTION
+
+=========================================================
 
 @app.route(
-    "/admin/quizzes/question/<int:question_id>/edit",
-    methods=["GET", "POST"]
+"/admin/quizzes/question/int:question_id/edit",
+methods=["GET", "POST"],
 )
 @admin_required
-def edit_quiz_question(question_id):
+def admin_quiz_edit(question_id):
 
-    db = get_db()
+question = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE id=?
+""",
+(
+question_id,
+),
+).fetchone()
 
-    question = db.execute(
-        """
-        SELECT *
-        FROM quizzes
-        WHERE id=?
-        """,
-        (question_id,)
-    ).fetchone()
+if not question:
 
-    if not question:
-        return "Question not found", 404
+flash(    
+    "Quiz question not found."    
+)    
 
-    if request.method == "POST":
+return redirect(    
+    url_for("admin")    
+)
 
-        db.execute(
-            """
-            UPDATE quizzes
-            SET question=?,
-                option_a=?,
-                option_b=?,
-                option_c=?,
-                option_d=?,
-                answer=?
-            WHERE id=?
-            """,
-            (
-                request.form.get("question", ""),
-                request.form.get("option_a", ""),
-                request.form.get("option_b", ""),
-                request.form.get("option_c", ""),
-                request.form.get("option_d", ""),
-                request.form.get("answer", "").upper(),
-                question_id
-            )
-        )
+if request.method == "POST":
 
-        db.commit()
+text = request.form.get(    
+    "question",    
+    "",    
+).strip()    
 
-        flash(
-            "Quiz question updated.",
-            "success"
-        )
+option_a = request.form.get(    
+    "option_a",    
+    "",    
+).strip()    
 
-        return redirect(
-            url_for(
-                "admin_quizzes",
-                course_id=question["course_id"]
-            )
-        )
+option_b = request.form.get(    
+    "option_b",    
+    "",    
+).strip()    
 
-    return render_template(
-        "admin_quiz_form.html",
-        question=question
-    )
+option_c = request.form.get(    
+    "option_c",    
+    "",    
+).strip()    
 
+option_d = request.form.get(    
+    "option_d",    
+    "",    
+).strip()    
+
+answer = request.form.get(    
+    "answer",    
+    "",    
+).strip().upper()    
+
+if not all(    
+    [    
+        text,    
+        option_a,    
+        option_b,    
+        option_c,    
+        option_d,    
+        answer,    
+    ]    
+):    
+
+    flash(    
+        "Please complete every question field."    
+    )    
+
+    return redirect(    
+        url_for(    
+            "admin_quiz_edit",    
+            question_id=question_id,    
+        )    
+    )    
+
+if answer not in [    
+    "A",    
+    "B",    
+    "C",    
+    "D",    
+]:    
+
+    flash(    
+        "Correct answer must be A, B, C or D."    
+    )    
+
+    return redirect(    
+        url_for(    
+            "admin_quiz_edit",    
+            question_id=question_id,    
+        )    
+    )    
+
+db().execute(    
+    """    
+    UPDATE quizzes    
+    SET    
+        question=?,    
+        option_a=?,    
+        option_b=?,    
+        option_c=?,    
+        option_d=?,    
+        answer=?    
+    WHERE id=?    
+    """,    
+    (    
+        text,    
+        option_a,    
+        option_b,    
+        option_c,    
+        option_d,    
+        answer,    
+        question_id,    
+    ),    
+)    
+
+db().commit()    
+
+flash(    
+    "Quiz question updated."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_quiz_manager",    
+        course_id=question["course_id"],    
+    )    
+)
+
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+question["course_id"],
+),
+).fetchone()
+
+return render_template(
+"admin_quiz_form.html",
+course=course,
+question=question,
+)
+
+=========================================================
+
+DELETE QUIZ QUESTION
+
+=========================================================
 
 @app.route(
-    "/admin/quizzes/question/<int:question_id>/delete",
-    methods=["POST"]
+"/admin/quizzes/question/int:question_id/delete",
+methods=["POST"],
 )
 @admin_required
-def delete_quiz_question(question_id):
+def admin_quiz_delete(question_id):
 
-    db = get_db()
+question = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE id=?
+""",
+(
+question_id,
+),
+).fetchone()
 
-    question = db.execute(
-        """
-        SELECT course_id
-        FROM quizzes
-        WHERE id=?
-        """,
-        (question_id,)
-    ).fetchone()
+if not question:
 
-    if question:
+flash(    
+    "Quiz question not found."    
+)    
 
-        db.execute(
-            """
-            DELETE FROM quiz_attempts
-            WHERE quiz_id=?
-            """,
-            (question_id,)
-        )
+return redirect(    
+    url_for("admin")    
+)
 
-        db.execute(
-            """
-            DELETE FROM quizzes
-            WHERE id=?
-            """,
-            (question_id,)
-        )
+db().execute(
+"""
+DELETE FROM quiz_attempts
+WHERE quiz_id=?
+""",
+(
+question_id,
+),
+)
 
-        db.commit()
+db().execute(
+"""
+DELETE FROM quizzes
+WHERE id=?
+""",
+(
+question_id,
+),
+)
 
-        flash(
-            "Quiz question deleted.",
-            "success"
-        )
+db().commit()
 
-        return redirect(
-            url_for(
-                "admin_quizzes",
-                course_id=question["course_id"]
-            )
-        )
+flash(
+"Quiz question deleted."
+)
 
-    return redirect(
-        url_for("admin")
-    )
+return redirect(
+url_for(
+"admin_quiz_manager",
+course_id=question["course_id"],
+)
+)
 
+=========================================================
 
-# ============================================================
-# RESULTS
-# ============================================================
+STUDENT QUIZ RESULTS
+
+=========================================================
 
 @app.route(
-    "/results/<int:course_id>"
+"/results/int:course_id"
 )
 @login_required
-def results(course_id):
+def student_results(course_id):
 
-    db = get_db()
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
 
-    course_row = db.execute(
-        """
-        SELECT *
-        FROM courses
-        WHERE id=?
-        """,
-        (course_id,)
-    ).fetchone()
+if not course:
 
-    results = db.execute(
-        """
-        SELECT
-            q.question,
-            qa.answer,
-            qa.correct,
-            qa.attempted_at
-        FROM quiz_attempts qa
-        JOIN quizzes q
-            ON q.id=qa.quiz_id
-        WHERE qa.user_id=?
-        AND q.course_id=?
-        ORDER BY qa.id DESC
-        """,
-        (
-            g.user["id"],
-            course_id
-        )
-    ).fetchall()
+flash(    
+    "Course not found."    
+)    
 
-    return render_template(
-        "results.html",
-        course=course_row,
-        results=results
-    )
+return redirect(    
+    url_for(    
+        "dashboard"    
+    )    
+)
 
+attempts = db().execute(
+"""
+SELECT
+qa.id,
+qa.score,
+qa.attempted_at
+FROM quiz_attempts qa
+JOIN quizzes q
+ON q.id=qa.quiz_id
+WHERE qa.user_id=?
+AND q.course_id=?
+ORDER BY qa.id DESC
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchall()
 
-# ============================================================
-# ADMIN STUDENTS
-# ============================================================
+total_questions = db().execute(
+"""
+SELECT COUNT(*)
+FROM quizzes
+WHERE course_id=?
+""",
+(
+course_id,
+),
+).fetchone()[0]
 
-@app.route("/admin/students")
+return render_template(
+"results.html",
+course=course,
+attempts=attempts,
+total_questions=total_questions,
+)
+
+=========================================================
+
+ADMIN STUDENT MANAGEMENT
+
+=========================================================
+
+@app.route(
+"/admin/students"
+)
 @admin_required
 def admin_students():
 
-    db = get_db()
+students = db().execute(
+"""
+SELECT
+u.id,
+u.full_name,
+u.email,
+u.phone,
+u.role,
+u.created_at,
+COUNT(e.id) AS enrollment_count
+FROM users u
+LEFT JOIN enrollments e
+ON e.user_id=u.id
+WHERE u.role='student'
+GROUP BY u.id
+ORDER BY u.id DESC
+"""
+).fetchall()
 
-    students = db.execute(
-        """
-        SELECT
-            u.*,
-            sa.last_active,
-            sa.lessons_viewed,
-            sa.lessons_completed,
-            sa.quizzes_attempted,
-            sa.activities_attempted
-        FROM users u
-        LEFT JOIN student_activity sa
-            ON sa.user_id=u.id
-        WHERE u.role='student'
-        ORDER BY u.id DESC
-        """
-    ).fetchall()
+return render_template(
+"admin_students.html",
+students=students,
+)
 
-    return render_template(
-        "admin_students.html",
-        students=students
-    )
+=========================================================
 
+ADMIN VIEW STUDENT
 
-# ============================================================
-# ADMIN STUDENT VIEW
-# ============================================================
+=========================================================
 
 @app.route(
-    "/admin/student/<int:user_id>"
+"/admin/student/int:user_id"
 )
 @admin_required
-def admin_student(user_id):
+def admin_student_view(user_id):
 
-    db = get_db()
+student = db().execute(
+"""
+SELECT *
+FROM users
+WHERE id=?
+AND role='student'
+""",
+(
+user_id,
+),
+).fetchone()
 
-    student = db.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE id=?
-        AND role='student'
-        """,
-        (user_id,)
-    ).fetchone()
+if not student:
 
-    if not student:
-        return "Student not found", 404
+flash(    
+    "Student not found."    
+)    
 
-    activity = db.execute(
-        """
-        SELECT *
-        FROM student_activity
-        WHERE user_id=?
-        """,
-        (user_id,)
-    ).fetchone()
-
-    enrollments = db.execute(
-        """
-        SELECT
-            e.*,
-            c.title
-        FROM enrollments e
-        JOIN courses c
-            ON c.id=e.course_id
-        WHERE e.user_id=?
-        """,
-        (user_id,)
-    ).fetchall()
-
-    reports = db.execute(
-        """
-        SELECT *
-        FROM student_reports
-        WHERE user_id=?
-        ORDER BY id DESC
-        """,
-        (user_id,)
-    ).fetchall()
-
-    return render_template(
-        "admin_student_view.html",
-        student=student,
-        activity=activity,
-        enrollments=enrollments,
-        reports=reports
-    )
-
-
-# ============================================================
-# ADMIN PARENT CONTACTS
-# ============================================================
-
-@app.route(
-    "/admin/parent-contacts"
+return redirect(    
+    url_for(    
+        "admin_students"    
+    )    
 )
-@admin_required
-def admin_parent_contacts():
 
-    db = get_db()
+enrollments = db().execute(
+"""
+SELECT
+e.*,
+c.title,
+c.level
+FROM enrollments e
+JOIN courses c
+ON c.id=e.course_id
+WHERE e.user_id=?
+ORDER BY e.id DESC
+""",
+(
+user_id,
+),
+).fetchall()
 
-    students = db.execute(
-        """
-        SELECT
-            u.id,
-            u.full_name,
-            u.email,
-            u.phone,
-            u.parent_phone,
-            sa.last_active
-        FROM users u
-        LEFT JOIN student_activity sa
-            ON sa.user_id=u.id
-        WHERE u.role='student'
-        ORDER BY u.full_name
-        """
-    ).fetchall()
+attempts = db().execute(
+"""
+SELECT
+qa.id,
+qa.score,
+qa.attempted_at,
+c.title AS course_title
+FROM quiz_attempts qa
+JOIN quizzes q
+ON q.id=qa.quiz_id
+JOIN courses c
+ON c.id=q.course_id
+WHERE qa.user_id=?
+ORDER BY qa.id DESC
+""",
+(
+user_id,
+),
+).fetchall()
 
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-            <title>Parent Contacts</title>
-            <style>
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:1100px;
-                    margin:auto;
-                }
-
-                table{
-                    width:100%;
-                    border-collapse:collapse;
-                    background:white;
-                }
-
-                th,td{
-                    padding:12px;
-                    border-bottom:1px solid #ddd;
-                    text-align:left;
-                }
-
-                th{
-                    background:#102a56;
-                    color:white;
-                }
-
-                a{
-                    text-decoration:none;
-                    font-weight:bold;
-                }
-
-                .wa{
-                    color:#168f3b;
-                }
-
-                .call{
-                    color:#1557a6;
-                }
-
-                .back{
-                    display:inline-block;
-                    margin-bottom:20px;
-                }
-            </style>
-        </head>
-        <body>
-
-        <div class="container">
-
-            <a class="back"
-               href="{{ url_for('admin') }}">
-               ← Admin Dashboard
-            </a>
-
-            <h1>Parent / Guardian Contacts</h1>
-
-            <table>
-
-                <tr>
-                    <th>Student</th>
-                    <th>Email</th>
-                    <th>Parent Phone</th>
-                    <th>Contact</th>
-                    <th>Last Active</th>
-                </tr>
-
-                {% for student in students %}
-
-                <tr>
-
-                    <td>
-                        {{ student["full_name"] }}
-                    </td>
-
-                    <td>
-                        {{ student["email"] }}
-                    </td>
-
-                    <td>
-                        {{ student["parent_phone"] or
-                           "NOT PROVIDED" }}
-                    </td>
-
-                    <td>
-
-                        {% if student["parent_phone"] %}
-
-                            <a class="call"
-                               href="tel:{{ student['parent_phone'] }}">
-                               Call
-                            </a>
-
-                            &nbsp;
-
-                            <a class="wa"
-                               target="_blank"
-                               href="{{ whatsapp_link(
-                                   student['parent_phone']
-                               ) }}">
-                               WhatsApp
-                            </a>
-
-                        {% else %}
-
-                            No number
-
-                        {% endif %}
-
-                    </td>
-
-                    <td>
-                        {{ student["last_active"] or "Never" }}
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </table>
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        students=students,
-        whatsapp_link=whatsapp_link
-    )
-
-
-# ============================================================
-# ADMIN PARTICIPATION / INACTIVE STUDENTS
-# ============================================================
-
-@app.route(
-    "/admin/participation"
+return render_template(
+"admin_student_view.html",
+student=student,
+enrollments=enrollments,
+attempts=attempts,
 )
-@admin_required
-def admin_participation():
 
-    db = get_db()
+=========================================================
 
-    students = db.execute(
-        """
-        SELECT
-            u.*,
-            sa.last_active,
-            sa.lessons_viewed,
-            sa.lessons_completed,
-            sa.quizzes_attempted,
-            sa.activities_attempted
-        FROM users u
-        LEFT JOIN student_activity sa
-            ON sa.user_id=u.id
-        WHERE u.role='student'
-        ORDER BY sa.last_active ASC
-        """
-    ).fetchall()
+ADMIN CERTIFICATE
 
-    active = []
-    inactive = []
-    no_parent = []
-
-    cutoff = datetime.utcnow() - timedelta(days=7)
-
-    for student in students:
-
-        last_active = None
-
-        if student["last_active"]:
-
-            try:
-                last_active = datetime.fromisoformat(
-                    student["last_active"]
-                )
-            except ValueError:
-                last_active = None
-
-        is_inactive = (
-            last_active is None
-            or last_active < cutoff
-        )
-
-        item = {
-            "student": student,
-            "inactive": is_inactive
-        }
-
-        if is_inactive:
-            inactive.append(item)
-        else:
-            active.append(item)
-
-        if not student["parent_phone"]:
-            no_parent.append(student)
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Student Participation</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    margin:0;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:1200px;
-                    margin:auto;
-                }
-
-                .cards{
-                    display:grid;
-                    grid-template-columns:
-                        repeat(auto-fit,minmax(180px,1fr));
-                    gap:15px;
-                    margin:20px 0;
-                }
-
-                .card{
-                    background:white;
-                    padding:20px;
-                    border-radius:12px;
-                    box-shadow:0 2px 10px rgba(0,0,0,.06);
-                }
-
-                .number{
-                    font-size:30px;
-                    font-weight:bold;
-                    color:#102a56;
-                }
-
-                table{
-                    width:100%;
-                    border-collapse:collapse;
-                    background:white;
-                    margin-bottom:30px;
-                }
-
-                th,td{
-                    padding:11px;
-                    border-bottom:1px solid #ddd;
-                    text-align:left;
-                }
-
-                th{
-                    background:#102a56;
-                    color:white;
-                }
-
-                .inactive{
-                    background:#fff0f0;
-                }
-
-                .active{
-                    background:#effaf1;
-                }
-
-                .button{
-                    display:inline-block;
-                    padding:8px 12px;
-                    border-radius:7px;
-                    background:#102a56;
-                    color:white;
-                    text-decoration:none;
-                    margin:2px;
-                }
-
-                .wa{
-                    background:#168f3b;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <div class="container">
-
-            <p>
-                <a href="{{ url_for('admin') }}">
-                    ← Admin Dashboard
-                </a>
-            </p>
-
-            <h1>Student Participation Monitor</h1>
-
-            <div class="cards">
-
-                <div class="card">
-                    <div>Total Students</div>
-                    <div class="number">
-                        {{ students|length }}
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div>Active</div>
-                    <div class="number">
-                        {{ active|length }}
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div>Inactive 7+ Days</div>
-                    <div class="number">
-                        {{ inactive|length }}
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div>No Parent Number</div>
-                    <div class="number">
-                        {{ no_parent|length }}
-                    </div>
-                </div>
-
-            </div>
-
-            <h2>Students Requiring Attention</h2>
-
-            <table>
-
-                <tr>
-                    <th>Student</th>
-                    <th>Last Active</th>
-                    <th>Lessons</th>
-                    <th>Quizzes</th>
-                    <th>Activities</th>
-                    <th>Parent</th>
-                    <th>Contact</th>
-                </tr>
-
-                {% for item in inactive %}
-
-                {% set student = item.student %}
-
-                <tr class="inactive">
-
-                    <td>
-                        <strong>
-                            {{ student["full_name"] }}
-                        </strong>
-                    </td>
-
-                    <td>
-                        {{ student["last_active"] or "Never" }}
-                    </td>
-
-                    <td>
-                        {{ student["lessons_completed"] or 0 }}
-                    </td>
-
-                    <td>
-                        {{ student["quizzes_attempted"] or 0 }}
-                    </td>
-
-                    <td>
-                        {{ student["activities_attempted"] or 0 }}
-                    </td>
-
-                    <td>
-                        {{ student["parent_phone"] or
-                           "Not provided" }}
-                    </td>
-
-                    <td>
-
-                        {% if student["parent_phone"] %}
-
-                            <a class="button"
-                               href="tel:{{ student['parent_phone'] }}">
-                               Call
-                            </a>
-
-                            <a class="button wa"
-                               target="_blank"
-                               href="{{ whatsapp_link(
-                                   student['parent_phone']
-                               ) }}">
-                               WhatsApp
-                            </a>
-
-                        {% endif %}
-
-                        <a class="button"
-                           href="{{ url_for(
-                               'admin_student',
-                               user_id=student['id']
-                           ) }}">
-                           View
-                        </a>
-
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </table>
-
-            <h2>Currently Active Students</h2>
-
-            <table>
-
-                <tr>
-                    <th>Student</th>
-                    <th>Last Active</th>
-                    <th>Lessons</th>
-                    <th>Quizzes</th>
-                    <th>Activities</th>
-                </tr>
-
-                {% for item in active %}
-
-                {% set student = item.student %}
-
-                <tr class="active">
-
-                    <td>
-                        {{ student["full_name"] }}
-                    </td>
-
-                    <td>
-                        {{ student["last_active"] }}
-                    </td>
-
-                    <td>
-                        {{ student["lessons_completed"] or 0 }}
-                    </td>
-
-                    <td>
-                        {{ student["quizzes_attempted"] or 0 }}
-                    </td>
-
-                    <td>
-                        {{ student["activities_attempted"] or 0 }}
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </table>
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        students=students,
-        active=active,
-        inactive=inactive,
-        no_parent=no_parent,
-        whatsapp_link=whatsapp_link
-    )
-
-
-# ============================================================
-# STUDENT NOTIFICATIONS
-# ============================================================
-
-@app.route("/notifications")
-@login_required
-def notifications():
-
-    db = get_db()
-
-    rows = db.execute(
-        """
-        SELECT *
-        FROM notifications
-        WHERE user_id=?
-        ORDER BY id DESC
-        LIMIT 50
-        """,
-        (g.user["id"],)
-    ).fetchall()
-
-    db.execute(
-        """
-        UPDATE notifications
-        SET is_read=1
-        WHERE user_id=?
-        """,
-        (g.user["id"],)
-    )
-
-    db.commit()
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Notifications</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:800px;
-                    margin:auto;
-                }
-
-                .notification{
-                    background:white;
-                    padding:18px;
-                    border-radius:12px;
-                    margin-bottom:12px;
-                    box-shadow:0 2px 8px rgba(0,0,0,.05);
-                }
-
-                .date{
-                    color:#777;
-                    font-size:12px;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <div class="container">
-
-            <p>
-                <a href="{{ url_for('dashboard') }}">
-                    ← Dashboard
-                </a>
-            </p>
-
-            <h1>Notifications</h1>
-
-            {% if rows %}
-
-                {% for row in rows %}
-
-                    <div class="notification">
-
-                        <h3>
-                            {{ row["title"] }}
-                        </h3>
-
-                        <p>
-                            {{ row["message"] }}
-                        </p>
-
-                        <div class="date">
-                            {{ row["created_at"] }}
-                        </div>
-
-                    </div>
-
-                {% endfor %}
-
-            {% else %}
-
-                <p>
-                    You do not have any notifications yet.
-                </p>
-
-            {% endif %}
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        rows=rows
-    )
-
-
-# ============================================================
-# STUDENT REPORT / CONTACT ADMIN
-# ============================================================
+=========================================================
 
 @app.route(
-    "/report-admin",
-    methods=["GET", "POST"]
+"/my-certificate/int:course_id"
 )
 @login_required
-def report_admin():
-
-    if request.method == "POST":
-
-        subject = request.form.get(
-            "subject",
-            ""
-        ).strip()
-
-        message = request.form.get(
-            "message",
-            ""
-        ).strip()
-
-        if not subject or not message:
-
-            flash(
-                "Please enter a subject and message.",
-                "danger"
-            )
-
-            return redirect(
-                url_for("report_admin")
-            )
-
-        db = get_db()
-
-        db.execute(
-            """
-            INSERT INTO student_reports(
-                user_id,
-                subject,
-                message,
-                status,
-                created_at
-            )
-            VALUES(?,?,?,'pending',?)
-            """,
-            (
-                g.user["id"],
-                subject,
-                message,
-                now()
-            )
-        )
-
-        db.commit()
-
-        notify_admins(
-            "New student report",
-            f"{g.user['full_name']} submitted: {subject}",
-            "report"
-        )
-
-        create_notification(
-            g.user["id"],
-            "Report sent",
-            "Your message has been sent to the academy administration.",
-            "success"
-        )
-
-        flash(
-            "Your report has been sent to the administration.",
-            "success"
-        )
-
-        return redirect(
-            url_for("report_admin")
-        )
-
-    db = get_db()
-
-    reports = db.execute(
-        """
-        SELECT *
-        FROM student_reports
-        WHERE user_id=?
-        ORDER BY id DESC
-        """,
-        (g.user["id"],)
-    ).fetchall()
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Contact Admin</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:800px;
-                    margin:auto;
-                }
-
-                .box{
-                    background:white;
-                    padding:20px;
-                    border-radius:12px;
-                    margin-bottom:20px;
-                }
-
-                input,textarea{
-                    width:100%;
-                    box-sizing:border-box;
-                    padding:12px;
-                    margin:8px 0 15px;
-                    border:1px solid #ccc;
-                    border-radius:8px;
-                }
-
-                textarea{
-                    min-height:150px;
-                }
-
-                button{
-                    background:#f5c400;
-                    border:0;
-                    padding:13px 20px;
-                    border-radius:8px;
-                    font-weight:bold;
-                }
-
-                .reply{
-                    background:#eef7ff;
-                    padding:12px;
-                    border-radius:8px;
-                    margin-top:10px;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <div class="container">
-
-            <p>
-                <a href="{{ url_for('dashboard') }}">
-                    ← Dashboard
-                </a>
-            </p>
-
-            <h1>Contact Administration</h1>
-
-            <div class="box">
-
-                <p>
-                    Use this page to report a problem,
-                    ask for help or communicate directly
-                    with Eagle Vision administration.
-                </p>
-
-                <form method="post">
-
-                    <label>Subject</label>
-
-                    <input
-                        name="subject"
-                        required
-                        placeholder="Example: I need help with Mathematics"
-                    >
-
-                    <label>Message</label>
-
-                    <textarea
-                        name="message"
-                        required
-                        placeholder="Write your message..."
-                    ></textarea>
-
-                    <button type="submit">
-                        Send to Admin
-                    </button>
-
-                </form>
-
-            </div>
-
-            <h2>Your Reports</h2>
-
-            {% for report in reports %}
-
-                <div class="box">
-
-                    <h3>
-                        {{ report["subject"] }}
-                    </h3>
-
-                    <p>
-                        {{ report["message"] }}
-                    </p>
-
-                    <strong>
-                        Status:
-                        {{ report["status"] }}
-                    </strong>
-
-                    {% if report["admin_reply"] %}
-
-                        <div class="reply">
-
-                            <strong>
-                                Admin Reply
-                            </strong>
-
-                            <p>
-                                {{ report["admin_reply"] }}
-                            </p>
-
-                        </div>
-
-                    {% endif %}
-
-                </div>
-
-            {% else %}
-
-                <p>
-                    You have not sent any reports yet.
-                </p>
-
-            {% endfor %}
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        reports=reports
-    )
-
-
-# ============================================================
-# ADMIN REPORTS
-# ============================================================
-
-@app.route("/admin/reports")
-@admin_required
-def admin_reports():
-
-    db = get_db()
-
-    reports = db.execute(
-        """
-        SELECT
-            r.*,
-            u.full_name,
-            u.email
-        FROM student_reports r
-        JOIN users u
-            ON u.id=r.user_id
-        ORDER BY
-            CASE
-                WHEN r.status='pending' THEN 0
-                ELSE 1
-            END,
-            r.id DESC
-        """
-    ).fetchall()
-
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport"
-                  content="width=device-width,initial-scale=1">
-
-            <title>Student Reports</title>
-
-            <style>
-
-                body{
-                    font-family:Arial,sans-serif;
-                    background:#f4f6f9;
-                    padding:20px;
-                }
-
-                .container{
-                    max-width:900px;
-                    margin:auto;
-                }
-
-                .report{
-                    background:white;
-                    padding:20px;
-                    margin-bottom:15px;
-                    border-radius:12px;
-                }
-
-                textarea{
-                    width:100%;
-                    box-sizing:border-box;
-                    min-height:100px;
-                    padding:12px;
-                    border:1px solid #ccc;
-                    border-radius:8px;
-                }
-
-                button{
-                    margin-top:10px;
-                    background:#102a56;
-                    color:white;
-                    border:0;
-                    padding:12px 20px;
-                    border-radius:8px;
-                }
-
-            </style>
-        </head>
-
-        <body>
-
-        <div class="container">
-
-            <p>
-                <a href="{{ url_for('admin') }}">
-                    ← Admin Dashboard
-                </a>
-            </p>
-
-            <h1>Student Reports</h1>
-
-            {% for report in reports %}
-
-                <div class="report">
-
-                    <h2>
-                        {{ report["subject"] }}
-                    </h2>
-
-                    <p>
-                        <strong>Student:</strong>
-                        {{ report["full_name"] }}
-                    </p>
-
-                    <p>
-                        <strong>Email:</strong>
-                        {{ report["email"] }}
-                    </p>
-
-                    <p>
-                        {{ report["message"] }}
-                    </p>
-
-                    <p>
-                        <strong>Status:</strong>
-                        {{ report["status"] }}
-                    </p>
-
-                    {% if report["admin_reply"] %}
-
-                        <hr>
-
-                        <strong>
-                            Previous Reply:
-                        </strong>
-
-                        <p>
-                            {{ report["admin_reply"] }}
-                        </p>
-
-                    {% endif %}
-
-                    <form method="post"
-                          action="{{ url_for(
-                              'reply_report',
-                              report_id=report['id']
-                          ) }}">
-
-                        <textarea
-                            name="admin_reply"
-                            placeholder="Write your reply..."
-                            required
-                        ></textarea>
-
-                        <button type="submit">
-                            Reply to Student
-                        </button>
-
-                    </form>
-
-                </div>
-
-            {% else %}
-
-                <p>
-                    No student reports.
-                </p>
-
-            {% endfor %}
-
-        </div>
-
-        </body>
-        </html>
-        """,
-        reports=reports
-    )
-
+def my_certificate(course_id):
+
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
+
+if not course:
+
+flash(    
+    "Course not found."    
+)    
+
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
+
+enrollment = db().execute(
+"""
+SELECT *
+FROM enrollments
+WHERE user_id=?
+AND course_id=?
+AND status='active'
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchone()
+
+if not enrollment:
+
+flash(    
+    "You must be enrolled in this course."    
+)    
+
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
+
+total_lessons = db().execute(
+"""
+SELECT COUNT(*)
+FROM lessons
+WHERE course_id=?
+""",
+(
+course_id,
+),
+).fetchone()[0]
+
+completed_lessons = db().execute(
+"""
+SELECT COUNT(*)
+FROM lesson_progress lp
+JOIN lessons l
+ON l.id=lp.lesson_id
+WHERE lp.user_id=?
+AND l.course_id=?
+AND lp.completed=1
+""",
+(
+g.user["id"],
+course_id,
+),
+).fetchone()[0]
+
+if (
+total_lessons == 0
+or completed_lessons < total_lessons
+):
+
+flash(    
+    "Complete all lessons before receiving your certificate."    
+)    
+
+return redirect(    
+    url_for(    
+        "course",    
+        course_id=course_id,    
+    )    
+)
+
+filename = (
+f"certificate_"
+f"{g.user['id']}_"
+f"{course_id}.pdf"
+)
+
+filepath = os.path.join(
+CERT_DIR,
+filename,
+)
+
+pdf = canvas.Canvas(
+filepath
+)
+
+pdf.setTitle(
+"Eagle Vision Academy Certificate"
+)
+
+pdf.setFont(
+"Helvetica-Bold",
+24,
+)
+
+pdf.drawCentredString(
+300,
+720,
+"EAGLE VISION ACADEMY",
+)
+
+pdf.setFont(
+"Helvetica-Bold",
+20,
+)
+
+pdf.drawCentredString(
+300,
+650,
+"CERTIFICATE OF COMPLETION",
+)
+
+pdf.setFont(
+"Helvetica",
+14,
+)
+
+pdf.drawCentredString(
+300,
+590,
+"This certificate is proudly presented to",
+)
+
+pdf.setFont(
+"Helvetica-Bold",
+20,
+)
+
+pdf.drawCentredString(
+300,
+545,
+g.user["full_name"],
+)
+
+pdf.setFont(
+"Helvetica",
+14,
+)
+
+pdf.drawCentredString(
+300,
+495,
+"for successfully completing",
+)
+
+pdf.setFont(
+"Helvetica-Bold",
+18,
+)
+
+pdf.drawCentredString(
+300,
+455,
+course["title"],
+)
+
+pdf.setFont(
+"Helvetica",
+11,
+)
+
+pdf.drawCentredString(
+300,
+390,
+"Eagle Vision Online Academy",
+)
+
+pdf.drawCentredString(
+300,
+365,
+datetime.utcnow().strftime(
+"%d %B %Y"
+),
+)
+
+pdf.save()
+
+return send_file(
+filepath,
+as_attachment=True,
+download_name=filename,
+)
+
+=========================================================
+
+TEACHER DASHBOARD
+
+=========================================================
+
+@app.route("/teacher")
+@teacher_required
+def teacher_dashboard():
+
+courses = db().execute(
+"""
+SELECT
+c.*,
+tc.assigned_at
+FROM teacher_courses tc
+JOIN courses c
+ON c.id=tc.course_id
+WHERE tc.teacher_id=?
+AND c.active=1
+ORDER BY c.id
+""",
+(
+g.user["id"],
+),
+).fetchall()
+
+return render_template(
+"teacher_dashboard.html",
+courses=courses,
+)
+
+=========================================================
+
+TEACHER COURSE
+
+=========================================================
 
 @app.route(
-    "/admin/reports/<int:report_id>/reply",
-    methods=["POST"]
+"/teacher/course/int:course_id"
+)
+@teacher_required
+def teacher_course(course_id):
+
+course = db().execute(
+"""
+SELECT c.*
+FROM courses c
+JOIN teacher_courses tc
+ON tc.course_id=c.id
+WHERE c.id=?
+AND tc.teacher_id=?
+""",
+(
+course_id,
+g.user["id"],
+),
+).fetchone()
+
+if not course:
+
+flash(    
+    "You are not assigned to this course."    
+)    
+
+return redirect(    
+    url_for(    
+        "teacher_dashboard"    
+    )    
+)
+
+lessons = db().execute(
+"""
+SELECT *
+FROM lessons
+WHERE course_id=?
+ORDER BY position
+""",
+(
+course_id,
+),
+).fetchall()
+
+quizzes = db().execute(
+"""
+SELECT *
+FROM quizzes
+WHERE course_id=?
+ORDER BY id
+""",
+(
+course_id,
+),
+).fetchall()
+
+students = db().execute(
+"""
+SELECT
+u.id,
+u.full_name,
+u.email,
+u.phone,
+e.status
+FROM enrollments e
+JOIN users u
+ON u.id=e.user_id
+WHERE e.course_id=?
+AND u.role='student'
+ORDER BY u.full_name
+""",
+(
+course_id,
+),
+).fetchall()
+
+return render_template(
+"teacher_course.html",
+course=course,
+lessons=lessons,
+quizzes=quizzes,
+students=students,
+)
+
+=========================================================
+
+ADMIN TEACHER MANAGEMENT
+
+=========================================================
+
+@app.route(
+"/admin/teachers"
 )
 @admin_required
-def reply_report(report_id):
+def admin_teachers():
 
-    reply = request.form.get(
-        "admin_reply",
-        ""
-    ).strip()
+teachers = db().execute(
+"""
+SELECT
+u.id,
+u.full_name,
+u.email,
+u.phone,
+u.created_at,
+COUNT(tc.id) AS course_count
+FROM users u
+LEFT JOIN teacher_courses tc
+ON tc.teacher_id=u.id
+WHERE u.role='teacher'
+GROUP BY u.id
+ORDER BY u.id DESC
+"""
+).fetchall()
 
-    if not reply:
+courses = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE active=1
+ORDER BY id
+"""
+).fetchall()
 
-        flash(
-            "Reply cannot be empty.",
-            "danger"
-        )
+assignments = db().execute(
+"""
+SELECT
+tc.id,
+tc.teacher_id,
+tc.course_id,
+c.title AS course_title
+FROM teacher_courses tc
+JOIN courses c
+ON c.id=tc.course_id
+ORDER BY tc.teacher_id, c.id
+"""
+).fetchall()
 
-        return redirect(
-            url_for("admin_reports")
-        )
+return render_template(
+"admin_teachers.html",
+teachers=teachers,
+courses=courses,
+assignments=assignments,
+)
 
-    db = get_db()
+=========================================================
 
-    report = db.execute(
-        """
-        SELECT *
-        FROM student_reports
-        WHERE id=?
-        """,
-        (report_id,)
-    ).fetchone()
+ADMIN CREATE TEACHER
 
-    if not report:
+=========================================================
 
-        flash(
-            "Report not found.",
-            "danger"
-        )
+@app.route(
+"/admin/teacher/add",
+methods=["POST"],
+)
+@admin_required
+def admin_add_teacher():
 
-        return redirect(
-            url_for("admin_reports")
-        )
+name = request.form.get(
+"full_name",
+"",
+).strip()
 
-    db.execute(
-        """
-        UPDATE student_reports
-        SET
-            status='replied',
-            admin_reply=?,
-            replied_at=?
-        WHERE id=?
-        """,
-Preview truncated for large file
+email = request.form.get(
+"email",
+"",
+).strip().lower()
+
+phone = request.form.get(
+"phone",
+"",
+).strip()
+
+password = request.form.get(
+"password",
+"",
+)
+
+if (
+not name
+or not email
+or not password
+):
+
+flash(    
+    "Teacher name, email and password are required."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_teachers"    
+    )    
+)
+
+if len(password) < 8:
+
+flash(    
+    "Teacher password must be at least 8 characters."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_teachers"    
+    )    
+)
+
+try:
+
+db().execute(    
+    """    
+    INSERT INTO users    
+    (    
+        full_name,    
+        email,    
+        phone,    
+        password_hash,    
+        role,    
+        created_at    
+    )    
+    VALUES (?, ?, ?, ?, ?, ?)    
+    """,    
+    (    
+        name,    
+        email,    
+        phone,    
+        generate_password_hash(    
+            password    
+        ),    
+        "teacher",    
+        datetime.utcnow().isoformat(),    
+    ),    
+)    
+
+db().commit()    
+
+flash(    
+    "Teacher account created successfully."    
+)
+
+except sqlite3.IntegrityError:
+
+flash(    
+    "That email is already registered."    
+)
+
+return redirect(
+url_for(
+"admin_teachers"
+)
+)
+
+=========================================================
+
+ADMIN ASSIGN COURSE TO TEACHER
+
+=========================================================
+
+@app.route(
+"/admin/teacher/int:teacher_id/assign",
+methods=["POST"],
+)
+@admin_required
+def admin_assign_teacher(
+teacher_id
+):
+
+course_id = request.form.get(
+"course_id",
+"",
+)
+
+teacher = db().execute(
+"""
+SELECT *
+FROM users
+WHERE id=?
+AND role='teacher'
+""",
+(
+teacher_id,
+),
+).fetchone()
+
+course = db().execute(
+"""
+SELECT *
+FROM courses
+WHERE id=?
+""",
+(
+course_id,
+),
+).fetchone()
+
+if not teacher:
+
+flash(    
+    "Teacher not found."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_teachers"    
+    )    
+)
+
+if not course:
+
+flash(    
+    "Course not found."    
+)    
+
+return redirect(    
+    url_for(    
+        "admin_teachers"    
+    )    
+)
+
+try:
+
+db().execute(    
+    """    
+    INSERT INTO teacher_courses    
+    (    
+        teacher_id,    
+        course_id,    
+        assigned_at    
+    )    
+    VALUES (?, ?, ?)    
+    """,    
+    (    
+        teacher_id,    
+        course_id,    
+        datetime.utcnow().isoformat(),    
+    ),    
+)    
+
+db().commit()    
+
+flash(    
+    "Course assigned to teacher successfully."    
+)
+
+except sqlite3.IntegrityError:
+
+flash(    
+    "This teacher is already assigned to that course."    
+)
+
+return redirect(
+url_for(
+"admin_teachers"
+)
+)
+
+=========================================================
+
+ADMIN REMOVE TEACHER ASSIGNMENT
+
+=========================================================
+
+@app.route(
+"/admin/teacher/int:teacher_id/remove/int:course_id",
+methods=["POST"],
+)
+@admin_required
+def admin_remove_teacher(
+teacher_id,
+course_id,
+):
+
+db().execute(
+"""
+DELETE FROM teacher_courses
+WHERE teacher_id=?
+AND course_id=?
+""",
+(
+teacher_id,
+course_id,
+),
+)
+
+db().commit()
+
+flash(
+"Teacher assignment removed."
+)
+
+return redirect(
+url_for(
+"admin_teachers"
+)
+)
+
+=========================================================
+
+INITIALIZE DATABASE
+
+=========================================================
+
+with app.app_context():
+init_db()
+
+=========================================================
+
+RUN APPLICATION
+
+=========================================================
+
+if name == "main":
+app.run(debug=True)
+
+This was the  error free working code edit using this one
