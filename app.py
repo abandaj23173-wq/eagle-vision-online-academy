@@ -1952,7 +1952,6 @@ def enrol(course_id):
         )
     )
 
-
 # ============================================================
 # PAYMENT SUBMISSION
 # ============================================================
@@ -2012,14 +2011,56 @@ def pay(course_id):
 
     if request.method == "POST":
 
+        # ----------------------------------------------------
+        # PAYMENT METHOD
+        # ----------------------------------------------------
+
+        method = request.form.get(
+            "method",
+            ""
+        ).strip()
+
+        if not method:
+            flash(
+                "Please select a payment method.",
+                "danger"
+            )
+            return redirect(
+                url_for(
+                    "pay",
+                    course_id=course_id
+                )
+            )
+
+        # ----------------------------------------------------
+        # PAYMENT REFERENCE
+        # ----------------------------------------------------
+
         reference = request.form.get(
             "reference",
             ""
         ).strip()
 
-        # Automatically use the stored course price
+        if not reference:
+            flash(
+                "Please enter your payment reference or transaction ID.",
+                "danger"
+            )
+            return redirect(
+                url_for(
+                    "pay",
+                    course_id=course_id
+                )
+            )
+
+        # ----------------------------------------------------
+        # AUTOMATICALLY USE COURSE PRICE
+        # ----------------------------------------------------
+
         try:
-            amount = float(course["price"] or 0)
+            amount = float(
+                course["price"] or 0
+            )
         except (TypeError, ValueError):
             amount = 0
 
@@ -2035,22 +2076,28 @@ def pay(course_id):
                 )
             )
 
+        # ----------------------------------------------------
+        # SAVE PAYMENT
+        # ----------------------------------------------------
+
         db.execute(
             """
             INSERT INTO payments(
                 user_id,
                 course_id,
                 amount,
+                method,
                 reference,
                 status,
                 created_at
             )
-            VALUES(?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?)
             """,
             (
                 user["id"],
                 course_id,
                 amount,
+                method,
                 reference,
                 "pending",
                 datetime.utcnow().isoformat()
@@ -2058,6 +2105,10 @@ def pay(course_id):
         )
 
         db.commit()
+
+        # ----------------------------------------------------
+        # SUCCESS MESSAGE
+        # ----------------------------------------------------
 
         flash(
             "Payment submitted successfully. It is waiting for verification.",
