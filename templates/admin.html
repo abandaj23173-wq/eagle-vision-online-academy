@@ -31,6 +31,82 @@
 
     </div>
 
+    <hr>
+
+    <!-- PENDING STUDENT ENROLMENTS -->
+    <h2>👨‍🎓 Pending Student Enrolments</h2>
+
+    <p class="muted">
+        Review students who have requested to join a course.
+    </p>
+
+    <table class="table">
+
+        <tr>
+            <th>Student</th>
+            <th>Course</th>
+            <th>Student Phone</th>
+            <th>Parent Phone</th>
+            <th>Date</th>
+            <th>Action</th>
+        </tr>
+
+        {% for e in pending_enrolments_list %}
+
+        <tr>
+
+            <td>
+                <strong>{{ e.full_name }}</strong><br>
+                {{ e.email }}
+            </td>
+
+            <td>
+                {{ e.course_title }}
+            </td>
+
+            <td>
+                {{ e.phone or 'Not provided' }}
+            </td>
+
+            <td>
+                {{ e.parent_phone or 'Not provided' }}
+            </td>
+
+            <td>
+                {{ e.created_at }}
+            </td>
+
+            <td>
+
+                <form
+                    method="post"
+                    action="{{ url_for('approve_enrollment', enrollment_id=e.id) }}"
+                >
+
+                    <button
+                        class="btn"
+                        type="submit"
+                    >
+                        ✅ Approve Student
+                    </button>
+
+                </form>
+
+            </td>
+
+        </tr>
+
+        {% else %}
+
+        <tr>
+            <td colspan="6">
+                No pending student enrolments.
+            </td>
+        </tr>
+
+        {% endfor %}
+
+    </table>
 
     <hr>
 
@@ -56,9 +132,13 @@
                 {{ p.email }}
             </td>
 
-            <td>{{ p.title }}</td>
+            <td>
+                {{ p.title }}
+            </td>
 
-            <td>{{ p.method }}</td>
+            <td>
+                {{ p.method }}
+            </td>
 
             <td>
                 <strong>{{ p.reference }}</strong>
@@ -71,8 +151,11 @@
                     action="{{ url_for('approve_payment', payment_id=p.id) }}"
                 >
 
-                    <button class="btn" type="submit">
-                        ✅ Approve
+                    <button
+                        class="btn"
+                        type="submit"
+                    >
+                        ✅ Approve Payment
                     </button>
 
                 </form>
@@ -92,7 +175,6 @@
         {% endfor %}
 
     </table>
-
 
     <hr>
 
@@ -117,7 +199,7 @@
             </td>
 
             <td>
-                {{ c.level }}
+                {{ c.level or 'N/A' }}
             </td>
 
             <td>
@@ -139,7 +221,6 @@
         {% endfor %}
 
     </table>
-
 
     <hr>
 
@@ -171,7 +252,6 @@
 
             </select>
 
-
             <label>Lesson Title</label>
 
             <input
@@ -180,7 +260,6 @@
                 placeholder="Example: Simultaneous Equations"
                 required
             >
-
 
             <label>Lesson Notes</label>
 
@@ -191,7 +270,6 @@
                 required
             ></textarea>
 
-
             <label>Video URL (optional)</label>
 
             <input
@@ -199,7 +277,6 @@
                 name="video_url"
                 placeholder="https://youtube.com/..."
             >
-
 
             <label>Lesson Position</label>
 
@@ -211,7 +288,6 @@
                 required
             >
 
-
             <button
                 class="btn"
                 type="submit"
@@ -222,7 +298,6 @@
         </form>
 
     </div>
-
 
     <hr>
 
@@ -242,7 +317,6 @@
             {{ l.title }}
         </p>
 
-
         <form
             method="post"
             action="{{ url_for('edit_lesson', lesson_id=l.id) }}"
@@ -257,7 +331,6 @@
                 required
             >
 
-
             <label>Lesson Notes</label>
 
             <textarea
@@ -266,7 +339,6 @@
                 required
             >{{ l.content }}</textarea>
 
-
             <label>Video URL</label>
 
             <input
@@ -274,7 +346,6 @@
                 name="video_url"
                 value="{{ l.video_url or '' }}"
             >
-
 
             <label>Lesson Position</label>
 
@@ -286,7 +357,6 @@
                 required
             >
 
-
             <button
                 class="btn"
                 type="submit"
@@ -295,7 +365,6 @@
             </button>
 
         </form>
-
 
         <form
             method="post"
@@ -322,7 +391,6 @@
     </p>
 
     {% endfor %}
-
 
     <hr>
 
@@ -358,7 +426,6 @@
 
     </div>
 
-
     <hr>
 
     <!-- STUDENT MANAGEMENT -->
@@ -379,7 +446,6 @@
 
     </div>
 
-
     <hr>
 
     <!-- ADMIN INFORMATION -->
@@ -392,17 +458,18 @@
 
     </div>
 
-
     <hr>
 
     <!-- LOGOUT -->
     <p>
+
         <a
             href="{{ url_for('logout') }}"
             class="btn"
         >
             🚪 Logout
         </a>
+
     </p>
 
 </div>
