@@ -250,7 +250,13 @@ def init_db():
         )
         """
     )
-
+    # Add amount column to older payments tables if missing
+    try:
+        conn.execute(
+            "ALTER TABLE payments ADD COLUMN amount REAL NOT NULL DEFAULT 0"
+        )
+    except Exception:
+        pass
     # --------------------------------------------------------
     # TEACHER COURSES
     # --------------------------------------------------------
